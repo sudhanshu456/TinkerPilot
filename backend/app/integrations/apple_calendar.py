@@ -1,46 +1,42 @@
 """
-Apple Calendar integration via pyobjc (EventKit).
-Reads calendar events from the macOS Calendar app.
+Apple Calendar integration via AppleScript.
+Reads calendar events from the macOS Calendar app using osascript.
+
+This approach triggers the proper macOS permission dialog (unlike pyobjc
+EventKit which silently fails for unbundled Python scripts on macOS 17+).
 """
 
+import json
 import logging
+import subprocess
 import datetime
 from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 
-def _get_event_store():
-    """Get the EventKit event store with permission."""
+def _run_applescript(script: str) -> str:
+    """Run an AppleScript and return stdout."""
     try:
-        import EventKit
-    except ImportError:
-        raise ImportError(
-            "pyobjc-framework-EventKit required. Install: pip install pyobjc-framework-EventKit"
+        result = subprocess.run(
+            ["osascript", "-e", script],
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
-
-    store = EventKit.EKEventStore.alloc().init()
-
-    # Request access (synchronous wait)
-    import threading
-
-    granted = threading.Event()
-    access_result = {"granted": False, "error": None}
-
-    def callback(granted_flag, error):
-        access_result["granted"] = granted_flag
-        access_result["error"] = error
-        granted.set()
-
-    store.requestAccessToEntityType_completion_(EventKit.EKEntityTypeEvent, callback)
-    granted.wait(timeout=10)
-
-    if not access_result["granted"]:
-        raise PermissionError(
-            "Calendar access denied. Grant access in System Settings > Privacy & Security > Calendars."
-        )
-
-    return store
+        if result.returncode != 0:
+            stderr = result.stderr.strip()
+            if "not allowed" in stderr.lower() or "denied" in stderr.lower():
+                raise PermissionError(
+                    "Calendar access denied. When macOS prompts, click Allow.\n"
+                    "Or grant manually: System Settings > Privacy & Security > Automation > Terminal > Calendar"
+                )
+            raise RuntimeError(f"AppleScript error: {stderr}")
+        return result.stdout.strip()
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("AppleScript timed out (Calendar may be unresponsive)")
+    except FileNotFoundError:
+        raise RuntimeError("osascript not found (not on macOS?)")
 
 
 def get_today_events() -> list[dict]:
@@ -50,66 +46,79 @@ def get_today_events() -> list[dict]:
 
 def get_events_for_date(date: datetime.date) -> list[dict]:
     """Get calendar events for a specific date."""
-    try:
-        import EventKit
-        import Foundation
-    except ImportError:
-        logger.warning("EventKit not available, returning empty events")
-        return []
+    # Use current date construction to avoid locale-dependent date parsing
+    year = date.year
+    month = date.month
+    day = date.day
+
+    script = f"""
+    set output to ""
+
+    -- Build date in a locale-independent way
+    set dayStart to current date
+    set year of dayStart to {year}
+    set month of dayStart to {month}
+    set day of dayStart to {day}
+    set time of dayStart to 0
+
+    set dayEnd to current date
+    set year of dayEnd to {year}
+    set month of dayEnd to {month}
+    set day of dayEnd to {day}
+    set time of dayEnd to 86399
+
+    tell application "Calendar"
+        set allCalendars to every calendar
+        repeat with cal in allCalendars
+            set calName to name of cal
+            set dayEvents to (every event of cal whose start date >= dayStart and start date <= dayEnd)
+            repeat with evt in dayEvents
+                set evtTitle to summary of evt
+                set evtStart to start date of evt
+                set evtEnd to end date of evt
+                set evtLoc to ""
+                try
+                    set evtLoc to location of evt
+                end try
+                if evtLoc is missing value then set evtLoc to ""
+                set evtAllDay to allday event of evt
+                set output to output & evtTitle & "||" & (evtStart as string) & "||" & (evtEnd as string) & "||" & evtLoc & "||" & evtAllDay & "||" & calName & linefeed
+            end repeat
+        end repeat
+    end tell
+    return output
+    """
 
     try:
-        store = _get_event_store()
+        raw = _run_applescript(script)
     except PermissionError as e:
         logger.warning(f"Calendar access denied: {e}")
         return []
+    except RuntimeError as e:
+        logger.warning(f"Calendar error: {e}")
+        return []
 
-    # Create date range for the day
-    cal = Foundation.NSCalendar.currentCalendar()
+    if not raw.strip():
+        return []
 
-    components_start = Foundation.NSDateComponents.alloc().init()
-    components_start.setYear_(date.year)
-    components_start.setMonth_(date.month)
-    components_start.setDay_(date.day)
-    components_start.setHour_(0)
-    components_start.setMinute_(0)
-    start_date = cal.dateFromComponents_(components_start)
-
-    components_end = Foundation.NSDateComponents.alloc().init()
-    components_end.setYear_(date.year)
-    components_end.setMonth_(date.month)
-    components_end.setDay_(date.day)
-    components_end.setHour_(23)
-    components_end.setMinute_(59)
-    end_date = cal.dateFromComponents_(components_end)
-
-    # Fetch events
-    predicate = store.predicateForEventsWithStartDate_endDate_calendars_(start_date, end_date, None)
-    events = store.eventsMatchingPredicate_(predicate)
-
-    result = []
-    for event in events or []:
-        try:
-            ev_start = event.startDate()
-            ev_end = event.endDate()
-
-            result.append(
+    events = []
+    for line in raw.strip().split("\n"):
+        parts = line.split("||")
+        if len(parts) >= 6:
+            events.append(
                 {
-                    "title": str(event.title() or "Untitled"),
-                    "start": str(ev_start),
-                    "end": str(ev_end),
-                    "location": str(event.location() or ""),
-                    "notes": str(event.notes() or ""),
-                    "is_all_day": bool(event.isAllDay()),
-                    "calendar": str(event.calendar().title()) if event.calendar() else "",
+                    "title": parts[0].strip(),
+                    "start": parts[1].strip(),
+                    "end": parts[2].strip(),
+                    "location": parts[3].strip(),
+                    "notes": "",
+                    "is_all_day": parts[4].strip().lower() == "true",
+                    "calendar": parts[5].strip(),
                 }
             )
-        except Exception as e:
-            logger.debug(f"Error reading event: {e}")
-            continue
 
-    # Sort by start time
-    result.sort(key=lambda x: x["start"])
-    return result
+    events.sort(key=lambda x: x["start"])
+    return events
 
 
 def get_upcoming_events(days: int = 7) -> list[dict]:
@@ -118,8 +127,8 @@ def get_upcoming_events(days: int = 7) -> list[dict]:
     today = datetime.date.today()
     for i in range(days):
         date = today + datetime.timedelta(days=i)
-        events = get_events_for_date(date)
-        for ev in events:
+        day_events = get_events_for_date(date)
+        for ev in day_events:
             ev["date"] = date.isoformat()
-        all_events.extend(events)
+        all_events.extend(day_events)
     return all_events
