@@ -473,9 +473,9 @@ def digest():
 
     # Notes
     try:
-        from app.integrations.apple_notes import get_recent_notes
+        from app.integrations.apple_notes import get_notes
 
-        notes = get_recent_notes(limit=3)
+        notes = get_notes(limit=3)
         if notes:
             console.print("\n[bold]Recent Notes:[/bold]")
             for n in notes:

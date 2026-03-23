@@ -61,9 +61,9 @@ async def get_daily_digest():
     # 3. Recent Apple Notes
     notes = []
     try:
-        from app.integrations.apple_notes import get_recent_notes
+        from app.integrations.apple_notes import get_notes
 
-        notes = get_recent_notes(limit=5)
+        notes = get_notes(limit=5)
     except Exception as e:
         logger.debug(f"Apple Notes not available: {e}")
     sections["notes"] = notes
