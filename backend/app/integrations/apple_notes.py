@@ -44,7 +44,10 @@ def get_notes(limit: int = 50) -> list[dict]:
             set noteTitle to name of n
             set noteBody to plaintext of n
             set noteDate to modification date of n as string
-            set noteFolder to name of container of n
+            set noteFolder to "Unknown"
+            try
+                set noteFolder to name of container of n
+            end try
             set noteId to id of n
             set end of noteList to noteId & "|||" & noteTitle & "|||" & noteBody & "|||" & noteDate & "|||" & noteFolder
         end repeat
