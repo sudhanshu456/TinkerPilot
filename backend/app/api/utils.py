@@ -301,3 +301,46 @@ Include environment setup, preconditions, exact steps, and expected vs actual be
     )
 
     return {"repro_steps": steps}
+
+
+# ─── Text-to-Speech ──────────────────────────────────────────
+
+
+class TTSRequest(BaseModel):
+    text: str
+    voice: Optional[str] = None
+    speed: float = 1.0
+
+
+@router.post("/utils/speak")
+async def text_to_speech(req: TTSRequest):
+    """Generate speech audio from text using Kokoro TTS."""
+    from app.core.tts import speak, list_voices
+
+    if not req.text.strip():
+        raise HTTPException(status_code=400, detail="Text is required")
+
+    try:
+        output_path = speak(
+            req.text,
+            voice=req.voice,
+            speed=req.speed,
+        )
+        from fastapi.responses import FileResponse
+
+        return FileResponse(
+            output_path,
+            media_type="audio/wav",
+            filename="speech.wav",
+        )
+    except Exception as e:
+        logger.error(f"TTS error: {e}")
+        raise HTTPException(status_code=500, detail=f"TTS failed: {str(e)}")
+
+
+@router.get("/utils/voices")
+async def get_voices():
+    """List available TTS voices."""
+    from app.core.tts import list_voices
+
+    return {"voices": list_voices()}

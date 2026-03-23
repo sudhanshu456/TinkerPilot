@@ -521,6 +521,60 @@ def listen(
     console.print(result["text"])
 
 
+# ─── Speak (Text-to-Speech) ───────────────────────────────────
+
+
+@app.command()
+def speak(
+    text: str = typer.Argument(..., help="Text to speak aloud"),
+    voice: Optional[str] = typer.Option(
+        None, "--voice", "-v", help="Voice name (heart, bella, adam, michael)"
+    ),
+    speed: float = typer.Option(1.0, "--speed", "-s", help="Speech speed (0.5-2.0)"),
+    output: Optional[str] = typer.Option(
+        None, "--output", "-o", help="Save to WAV file instead of playing"
+    ),
+):
+    """Convert text to speech using Kokoro TTS."""
+    from app.core.tts import speak as tts_speak, list_voices
+
+    console.print("[dim]Generating speech...[/dim]")
+
+    wav_path = tts_speak(text, voice=voice, speed=speed, output_path=output)
+
+    if output:
+        console.print(f"[green]Audio saved to: {output}[/green]")
+    else:
+        # Play the audio
+        try:
+            import sounddevice as sd
+            import soundfile as sf
+
+            data, sr = sf.read(wav_path)
+            console.print("[dim]Playing...[/dim]")
+            sd.play(data, sr)
+            sd.wait()
+            Path(wav_path).unlink(missing_ok=True)
+        except Exception as e:
+            console.print(f"[yellow]Could not play audio: {e}[/yellow]")
+            console.print(f"Audio saved at: {wav_path}")
+
+
+@app.command()
+def voices():
+    """List available TTS voices."""
+    from app.core.tts import list_voices
+
+    table = Table(title="Available TTS Voices")
+    table.add_column("Name", style="cyan")
+    table.add_column("Voice ID", style="dim")
+
+    for name, voice_id in list_voices().items():
+        table.add_row(name, voice_id)
+
+    console.print(table)
+
+
 # ─── Server ──────────────────────────────────────────────────
 
 

@@ -1,7 +1,10 @@
 """
-Speech-to-text wrapper using faster-whisper.
-Provides transcription from audio files and raw audio data.
-Uses Whisper small model with int8 quantization for 8GB RAM efficiency.
+Speech-to-text wrapper using Moonshine Voice.
+Replaces faster-whisper with Moonshine for better accuracy, lower latency,
+and native streaming support on Apple Silicon.
+
+Moonshine Medium Streaming: 6.65% WER (beats Whisper Large v3 at 7.44%)
+at 107ms latency per chunk on MacBook.
 """
 
 import logging
@@ -13,43 +16,51 @@ from app.config import get_config
 
 logger = logging.getLogger(__name__)
 
-_model = None
-_loaded_size: Optional[str] = None
+_transcriber = None
+_model_path = None
+_model_arch = None
+
+
+def _ensure_model():
+    """Download Moonshine model if not already present. Returns (model_path, model_arch)."""
+    global _model_path, _model_arch
+    if _model_path is not None:
+        return _model_path, _model_arch
+
+    from moonshine_voice import download
+
+    config = get_config()
+    language = config.whisper.language or "en"
+
+    logger.info(f"Ensuring Moonshine model is downloaded for language: {language}")
+    _model_path, _model_arch = download.get_model_for_language(language)
+    logger.info(f"Moonshine model ready: path={_model_path}")
+    return _model_path, _model_arch
 
 
 def get_whisper_model():
-    """Get or initialize the Whisper model singleton. Lazy-loaded."""
-    global _model, _loaded_size
-    config = get_config()
+    """Get or initialize the Moonshine transcriber. Lazy-loaded."""
+    global _transcriber
+    if _transcriber is not None:
+        return _transcriber
 
-    if _model is not None and _loaded_size == config.whisper.model_size:
-        return _model
+    from moonshine_voice import Transcriber
 
-    from faster_whisper import WhisperModel
+    model_path, model_arch = _ensure_model()
 
-    logger.info(
-        f"Loading Whisper model (size={config.whisper.model_size}, "
-        f"device={config.whisper.device}, compute={config.whisper.compute_type})..."
-    )
-
-    _model = WhisperModel(
-        config.whisper.model_size,
-        device=config.whisper.device,
-        compute_type=config.whisper.compute_type,
-    )
-    _loaded_size = config.whisper.model_size
-    logger.info("Whisper model loaded successfully.")
-    return _model
+    logger.info("Loading Moonshine transcriber...")
+    _transcriber = Transcriber(model_path=model_path, model_arch=model_arch)
+    logger.info("Moonshine transcriber loaded.")
+    return _transcriber
 
 
 def unload_whisper():
-    """Unload whisper model to free memory."""
-    global _model, _loaded_size
-    if _model is not None:
-        del _model
-        _model = None
-        _loaded_size = None
-        logger.info("Whisper model unloaded.")
+    """Unload Moonshine model to free memory."""
+    global _transcriber, _model_path, _model_arch
+    if _transcriber is not None:
+        del _transcriber
+        _transcriber = None
+        logger.info("Moonshine transcriber unloaded.")
 
 
 def transcribe_file(
@@ -57,41 +68,85 @@ def transcribe_file(
     language: Optional[str] = None,
 ) -> dict:
     """
-    Transcribe an audio file.
+    Transcribe an audio file using Moonshine.
 
     Returns:
         dict with keys:
             - text: full transcription text
             - segments: list of {start, end, text} dicts
-            - language: detected language
-            - language_probability: confidence
+            - language: detected/configured language
+            - language_probability: confidence (1.0 for Moonshine)
     """
-    config = get_config()
-    model = get_whisper_model()
+    from moonshine_voice import Transcriber
+    from moonshine_voice.transcriber import TranscriptEventListener
 
-    segments_iter, info = model.transcribe(
-        audio_path,
-        beam_size=config.whisper.beam_size,
-        language=language or config.whisper.language,
-        vad_filter=config.whisper.vad_filter,
-    )
+    model_path, model_arch = _ensure_model()
+
+    transcriber = Transcriber(model_path=model_path, model_arch=model_arch)
+
+    # Collect transcript lines
+    lines = []
+
+    class Collector(TranscriptEventListener):
+        def on_line_completed(self, event):
+            lines.append(
+                {
+                    "text": event.line.text.strip(),
+                    "start": getattr(event.line, "start_time", 0.0),
+                    "duration": getattr(event.line, "duration", 0.0),
+                }
+            )
+
+    transcriber.add_listener(Collector())
+
+    # Use the non-streaming method for file transcription
+    from moonshine_voice.utils import load_wav_file
+
+    try:
+        audio_data, sample_rate = load_wav_file(audio_path)
+    except Exception:
+        # If load_wav_file fails, try with soundfile
+        import soundfile as sf
+
+        audio_data, sample_rate = sf.read(audio_path, dtype="float32")
+        if len(audio_data.shape) > 1:
+            audio_data = audio_data[:, 0]  # mono
+
+    transcriber.start()
+
+    # Feed audio in chunks (simulates streaming for event callbacks)
+    chunk_duration = 0.5
+    chunk_size = int(chunk_duration * sample_rate)
+    for i in range(0, len(audio_data), chunk_size):
+        chunk = audio_data[i : i + chunk_size]
+        transcriber.add_audio(chunk, sample_rate)
+
+    transcriber.stop()
+
+    # Build result
+    full_text = " ".join(line["text"] for line in lines if line["text"])
 
     segments = []
-    full_text_parts = []
-    for segment in segments_iter:
-        seg_data = {
-            "start": round(segment.start, 2),
-            "end": round(segment.end, 2),
-            "text": segment.text.strip(),
-        }
-        segments.append(seg_data)
-        full_text_parts.append(segment.text.strip())
+    running_time = 0.0
+    for line in lines:
+        if line["text"]:
+            start = line.get("start", running_time)
+            duration = line.get("duration", 0.0)
+            segments.append(
+                {
+                    "start": round(start, 2),
+                    "end": round(start + duration, 2),
+                    "text": line["text"],
+                }
+            )
+            running_time = start + duration
 
+    config = get_config()
     return {
-        "text": " ".join(full_text_parts),
+        "text": full_text,
         "segments": segments,
-        "language": info.language,
-        "language_probability": round(info.language_probability, 3),
+        "language": language or config.whisper.language,
+        "language_probability": 1.0,
     }
 
 

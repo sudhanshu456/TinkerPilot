@@ -34,13 +34,25 @@ class EmbeddingConfig:
 
 
 @dataclass
-class WhisperConfig:
-    model_size: str = "small"
+class STTConfig:
+    """Speech-to-text config (Moonshine Voice)."""
+
+    model_size: str = "small"  # tiny, small, medium
+    language: str = "en"
+    # Legacy keys kept for backward compatibility
     device: str = "cpu"
     compute_type: str = "int8"
-    language: str = "en"
     beam_size: int = 5
     vad_filter: bool = True
+
+
+@dataclass
+class TTSConfig:
+    """Text-to-speech config (Kokoro-82M)."""
+
+    voice: str = "af_heart"  # Default voice
+    speed: float = 1.0
+    lang_code: str = "a"  # a=American English, b=British
 
 
 @dataclass
@@ -63,7 +75,8 @@ class IntegrationConfig:
 class AppConfig:
     llm: LLMConfig = field(default_factory=LLMConfig)
     embedding: EmbeddingConfig = field(default_factory=EmbeddingConfig)
-    whisper: WhisperConfig = field(default_factory=WhisperConfig)
+    whisper: STTConfig = field(default_factory=STTConfig)
+    tts: TTSConfig = field(default_factory=TTSConfig)
     rag: RAGConfig = field(default_factory=RAGConfig)
     integrations: IntegrationConfig = field(default_factory=IntegrationConfig)
     ollama_base_url: str = "http://localhost:11434"
@@ -87,6 +100,8 @@ def load_config(config_path: Optional[str] = None) -> AppConfig:
             "llm": config.llm,
             "embedding": config.embedding,
             "whisper": config.whisper,
+            "stt": config.whisper,  # alias
+            "tts": config.tts,
             "rag": config.rag,
             "integrations": config.integrations,
         }

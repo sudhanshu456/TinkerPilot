@@ -62,6 +62,13 @@ if ! command -v node &> /dev/null; then
 fi
 info "Node.js: $(node --version)"
 
+# espeak-ng (needed for Kokoro TTS)
+if ! command -v espeak-ng &> /dev/null; then
+    info "Installing espeak-ng (required for TTS)..."
+    brew install espeak-ng
+fi
+info "espeak-ng: $(espeak-ng --version 2>&1 | head -1)"
+
 # ─── 2. Install Ollama ──────────────────────────────────────
 
 step "Setting up Ollama (local AI inference)..."
