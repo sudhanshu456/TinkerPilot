@@ -499,13 +499,35 @@ def listen(
     import sounddevice as sd
     import soundfile as sf
     import tempfile
+    import time
 
     sample_rate = 16000
-    console.print(f"[bold cyan]Recording for {duration} seconds... Speak now.[/bold cyan]")
+    console.print(f"[bold cyan]Recording up to {duration} seconds... Speak now.[/bold cyan]")
 
+    start_time = time.time()
     audio = sd.rec(int(duration * sample_rate), samplerate=sample_rate, channels=1, dtype="float32")
-    sd.wait()
-    console.print("[dim]Recording complete. Transcribing...[/dim]")
+
+    try:
+        while time.time() - start_time < duration:
+            elapsed = time.time() - start_time
+            sys.stdout.write(
+                f"\r⏱️  Recording: {elapsed:.1f}s / {duration}s  (Press Ctrl+C to stop early) "
+            )
+            sys.stdout.flush()
+            time.sleep(0.1)
+    except KeyboardInterrupt:
+        sd.stop()
+        sys.stdout.write("\n")
+        console.print("[yellow]Recording stopped early.[/yellow]")
+
+    sys.stdout.write("\r" + " " * 80 + "\r")  # Clear the line
+
+    elapsed_exact = min(time.time() - start_time, duration)
+    actual_frames = int(elapsed_exact * sample_rate)
+    if actual_frames < len(audio):
+        audio = audio[:actual_frames]
+
+    console.print(f"[dim]Recording complete ({elapsed_exact:.1f}s). Transcribing...[/dim]")
 
     # Save to temp file
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
