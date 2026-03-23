@@ -1,7 +1,7 @@
 """
 TinkerPilot configuration.
 All paths default to ~/.tinkerpilot/ for user data.
-Models are managed by Ollama (no manual GGUF downloads needed).
+Models are managed by Ollama (LLM + embeddings) and auto-downloaded (STT + TTS).
 """
 
 import os

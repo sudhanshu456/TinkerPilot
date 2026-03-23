@@ -1,6 +1,6 @@
 """
 Embedding wrapper using Ollama.
-Uses nomic-embed-text for generating text embeddings locally via Ollama API.
+Uses Qwen3-Embedding 0.6B for generating text embeddings locally via Ollama API.
 Embeddings are used for RAG (semantic search over documents).
 """
 
@@ -60,7 +60,7 @@ def unload_embedder():
 
 def embed_text(text: str) -> list[float]:
     """Generate embedding vector for a single text string."""
-    # nomic-embed-text in Ollama handles prefixes internally
+    # Ollama embedding models handle prefixes internally
     return _embed_via_ollama(text)
 
 

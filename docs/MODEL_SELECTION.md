@@ -2,16 +2,17 @@
 
 ## Executive Summary
 
-TinkerPilot uses three local AI models, all running on-device via Apple Silicon Metal GPU acceleration. No cloud APIs are used. The models were selected to maximize capability within the strict constraint of an **8GB RAM Apple M1 MacBook**.
+TinkerPilot uses four local AI models, all running on-device via Apple Silicon Metal GPU acceleration. No cloud APIs are used. The models were selected to maximize capability within the strict constraint of an **8GB RAM Apple M1 MacBook**.
 
 | Model | Purpose | Size (on disk) | RAM Usage | Inference Engine |
 |-------|---------|----------------|-----------|------------------|
 | **Qwen2.5-3B-Instruct** | Chat, summarization, code explanation, task extraction | ~2.0 GB | ~2.2 GB | Ollama (Metal GPU) |
 | **Qwen3-Embedding 0.6B** | Text embeddings for RAG semantic search | ~639 MB | ~500 MB | Ollama (Metal GPU) |
-| **Whisper small** (int8, CTranslate2) | Speech-to-text transcription | ~500 MB | ~500 MB | faster-whisper |
-| **Total** | | **~3.1 GB** | **~3.2 GB** | |
+| **Moonshine Voice Small** | Speech-to-text (streaming) | ~250 MB | ~250 MB | ONNX Runtime |
+| **Kokoro-82M** | Text-to-speech (6 voices) | ~82 MB | ~200 MB | PyTorch (MPS GPU) |
+| **Total** | | **~3.0 GB** | **~3.2 GB** | |
 
-With macOS using ~2.5 GB baseline + app overhead (~500 MB for Python, ChromaDB, SQLite, FastAPI), the total footprint is approximately **6.2 GB**, leaving ~2.0 GB headroom on an 8 GB machine.
+With macOS using ~2.5 GB baseline + app overhead (~500 MB for Python, ChromaDB, SQLite, FastAPI), the total footprint is approximately **6.2 GB**, leaving ~2.0 GB headroom on an 8 GB machine. STT and TTS are lazy-loaded and don't run simultaneously with the LLM.
 
 ---
 
@@ -85,35 +86,83 @@ Qwen3-Embedding 0.6B was chosen for the embedding/retrieval layer because:
 
 ---
 
-## 3. Speech-to-Text: Whisper small (faster-whisper, int8)
+## 3. Speech-to-Text: Moonshine Voice
 
 ### Why This Model
 
-OpenAI's Whisper model (via the faster-whisper reimplementation) was chosen because:
+Moonshine Voice was chosen to replace faster-whisper (Whisper) because:
 
-1. **faster-whisper is 4x faster** than the original OpenAI implementation, thanks to CTranslate2's optimized inference engine with int8 quantization.
+1. **Better accuracy**: Moonshine Medium achieves **6.65% WER**, beating Whisper Large v3 (7.44% WER) with only 245M parameters vs 1.5B.
 
-2. **Whisper small** offers the best accuracy/size tradeoff for 8 GB machines:
-   - Whisper tiny: Fast but noticeable accuracy issues with accented speech
-   - Whisper small: Good accuracy, 500 MB RAM, ~2x real-time speed
-   - Whisper medium: Better accuracy but 1.5 GB RAM, too heavy alongside LLM
-   - Whisper large: 3 GB, impossible on 8 GB
+2. **Native streaming**: Purpose-built for live speech with 73ms latency per chunk (MacBook). Whisper operates on fixed 30-second windows, wasting compute on padding.
 
-3. **VAD (Voice Activity Detection)**: Built-in Silero VAD automatically strips silence, reducing processing time.
+3. **Caching**: Moonshine caches encoder state between incremental audio additions, skipping redundant computation when transcribing streaming input.
 
-4. **Python API**: 3-line integration. Mature, well-tested, 21K+ GitHub stars.
+4. **Smaller footprint**: Small model uses ~250 MB (vs 500 MB for Whisper small) with better accuracy.
 
-### Why Not Parakeet V3
+5. **Cross-platform**: Same library works on macOS, iOS, Android, Raspberry Pi, Linux, Windows.
 
-Parakeet V3 (NVIDIA's model) was considered but rejected: no lightweight Python wrapper exists. Running via raw ONNX Runtime requires building custom audio preprocessing and CTC decoding pipelines from scratch.
+6. **Simple Python API**: `pip install moonshine-voice`, event-based transcription with `TranscriptEventListener`.
 
-### Memory Management Strategy
+### Size Options
 
-Whisper is **lazy-loaded**: only loaded when transcription is requested, unloaded afterward. Ollama also auto-manages LLM/embedding model memory.
+| Model | WER | Latency (MacBook) | Size |
+|-------|-----|-------------------|------|
+| Moonshine Tiny | 12.00% | 34ms | ~60 MB |
+| Moonshine Small | 7.84% | 73ms | ~250 MB |
+| Moonshine Medium | 6.65% | 107ms | ~500 MB |
+
+### Alternatives Considered
+
+| Model | Why Not |
+|-------|---------|
+| **faster-whisper (Whisper)** | Previously used. Fixed 30-second input window, no streaming support, higher latency. |
+| **Whisper Large v3 Turbo** | Better accuracy than Whisper small but 800 MB and still no native streaming. |
+| **Parakeet V3** | No lightweight Python wrapper. Requires custom ONNX preprocessing. |
+
+### Memory Management
+
+Moonshine is **lazy-loaded**: only loaded when transcription is requested, auto-downloads on first use.
 
 ---
 
-## 4. Architecture Decision: Ollama
+## 4. Text-to-Speech: Kokoro-82M
+
+### Why This Model
+
+Kokoro-82M was chosen for local text-to-speech because:
+
+1. **Tiny size**: Only 82M parameters (~82 MB on disk). Fits trivially in 8 GB RAM budget.
+
+2. **Near-studio quality**: Based on StyleTTS 2 architecture. Sounds natural and expressive, not robotic.
+
+3. **Faster-than-realtime**: Generates 2.5 seconds of audio in 1.7 seconds on M1.
+
+4. **MPS GPU acceleration**: Supports Apple Silicon GPU via `PYTORCH_ENABLE_MPS_FALLBACK=1`.
+
+5. **Multiple voices**: 6 built-in voices (4 female, 2 male) with different tones.
+
+6. **Multilingual**: English, Japanese, Chinese, Spanish, French, Hindi, Italian, Portuguese.
+
+7. **Apache 2.0 license**: No restrictions on commercial or personal use.
+
+8. **Simple API**: `pip install kokoro`, 5-line Python integration.
+
+### Alternatives Considered
+
+| Model | Why Not |
+|-------|---------|
+| **Piper** | Archived (Oct 2025). Moved to GPL-licensed fork. Not suitable for new projects. |
+| **Coqui TTS (XTTS v2)** | Company shut down. Community fork exists but 200MB-2GB models, slow on CPU. |
+| **MeloTTS** | Decent quality but less natural than Kokoro, fewer voices. |
+
+### Requirements
+
+Kokoro requires `espeak-ng` for phoneme processing. Installed via `brew install espeak-ng` (automated in setup.sh).
+
+---
+
+## 5. Architecture Decision: Ollama
 
 TinkerPilot uses **Ollama** for LLM and embedding inference:
 
@@ -126,14 +175,11 @@ TinkerPilot uses **Ollama** for LLM and embedding inference:
 | **API** | OpenAI-compatible REST API on localhost:11434 |
 | **Memory** | Auto-manages model loading/unloading |
 
-This was chosen over llama-cpp-python (direct C++ bindings) because:
-- llama-cpp-python requires compiling C++ from source, which fails on many systems (wrong Python version, broken ccache, missing cmake/Xcode tools)
-- Ollama provides the same Metal GPU acceleration with zero compilation
-- The ~50MB overhead from the Ollama server process is negligible
+This was chosen over llama-cpp-python (direct C++ bindings) because Ollama is a pre-built binary that requires no C++ compilation, no cmake, and no Xcode tools. It provides the same Metal GPU acceleration with zero setup friction.
 
 ---
 
-## 5. RAM Budget Analysis (8 GB M1 MacBook)
+## 6. RAM Budget Analysis (8 GB M1 MacBook)
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -147,16 +193,17 @@ This was chosen over llama-cpp-python (direct C++ bindings) because:
 ├─────────────────────────────────────────────┤
 │ Qwen2.5-3B (Ollama, Metal)   ~2,200 MB     │
 │ Qwen3-Embedding 0.6B (Ollama)  ~500 MB     │
-│ Whisper small (int8) *lazy*    ~500 MB     │
+│ Moonshine Small *lazy*         ~250 MB     │
+│ Kokoro-82M *lazy*              ~200 MB     │
 ├─────────────────────────────────────────────┤
-│ Total model usage:            ~3,200 MB     │
-│ Remaining headroom:           ~2,042 MB     │
+│ Total model usage:            ~3,150 MB     │
+│ Remaining headroom:           ~2,092 MB     │
 └─────────────────────────────────────────────┘
 ```
 
 ---
 
-## 6. Model Configurability
+## 7. Model Configurability
 
 Users can swap models by updating `~/.tinkerpilot/config.yaml`:
 
@@ -169,22 +216,28 @@ embedding:
   model_name: "qwen3-embedding:0.6b"  # or nomic-embed-text, mxbai-embed-large
 
 whisper:
-  model_size: small  # tiny, base, small, medium, large
+  model_size: small  # tiny, small, medium (Moonshine sizes)
+  language: en       # ar, es, en, ja, ko, vi, uk, zh
+
+tts:
+  voice: af_heart    # af_bella, af_nicole, af_sky, am_adam, am_michael
+  speed: 1.0
 ```
 
-Any model available via `ollama list` can be used. Users with 16 GB+ RAM can upgrade to larger models (e.g., `qwen2.5:7b`, `gemma3:4b`) without code changes.
+Any model available via `ollama list` can be used for LLM/embeddings. Users with 16 GB+ RAM can upgrade to larger models (e.g., `qwen2.5:7b`, `gemma3:4b`) without code changes.
 
 ---
 
-## 7. Performance Expectations on M1 8GB
+## 8. Performance Expectations on M1 8GB
 
 | Operation | Expected Performance |
 |-----------|---------------------|
 | LLM generation (Qwen 3B, Metal) | 15-25 tokens/sec |
-| Document embedding (nomic) | ~200 chunks/minute |
-| Speech transcription (Whisper small, int8) | ~2x real-time |
+| Document embedding (Qwen3-Embed) | ~200 chunks/minute |
+| Speech transcription (Moonshine) | 73ms per chunk (streaming) |
+| Text-to-speech (Kokoro) | faster-than-realtime |
 | RAG query (retrieve + generate) | 3-8 seconds total |
-| Meeting summarization (5 min audio) | ~30 sec transcribe + ~15 sec summarize |
+| Meeting summarization (5 min audio) | ~15 sec transcribe + ~15 sec summarize |
 | Startup (cold, first model load) | ~5-10 seconds |
 
 Performance improves significantly on M1 Pro/Max/Ultra or M2/M3/M4 machines.

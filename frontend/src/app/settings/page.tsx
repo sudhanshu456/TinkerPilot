@@ -184,9 +184,10 @@ export default function SettingsPage() {
       {/* Model Info */}
       <Section title="AI Models">
         <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-          <p><strong>LLM:</strong> Qwen2.5-3B-Instruct (Q4_K_M GGUF) via llama-cpp-python</p>
-          <p><strong>Embeddings:</strong> nomic-embed-text-v1.5 (Q4_K_M GGUF) via llama-cpp-python</p>
-          <p><strong>Speech-to-Text:</strong> Whisper small (int8) via faster-whisper</p>
+          <p><strong>LLM:</strong> Qwen2.5-3B-Instruct via Ollama (Metal GPU)</p>
+          <p><strong>Embeddings:</strong> Qwen3-Embedding 0.6B via Ollama (Metal GPU)</p>
+          <p><strong>Speech-to-Text:</strong> Moonshine Voice (streaming, 73ms latency)</p>
+          <p><strong>Text-to-Speech:</strong> Kokoro-82M (6 voices, faster-than-realtime)</p>
           <p style={{ marginTop: '0.5rem' }}>All models run locally with Metal GPU acceleration. No cloud APIs used.</p>
         </div>
       </Section>
@@ -204,6 +205,8 @@ export default function SettingsPage() {
           <p><code style={codeBg}>tp cmd &quot;find large files&quot;</code> - NL to shell cmd</p>
           <p><code style={codeBg}>tp git-digest /path/to/repo</code> - Summarize git</p>
           <p><code style={codeBg}>tp listen</code> - Speech-to-text</p>
+          <p><code style={codeBg}>tp speak &quot;hello&quot;</code> - Text-to-speech</p>
+          <p><code style={codeBg}>tp voices</code> - List TTS voices</p>
           <p><code style={codeBg}>tp digest</code> - Daily briefing</p>
           <p><code style={codeBg}>tp serve</code> - Start backend server</p>
         </div>

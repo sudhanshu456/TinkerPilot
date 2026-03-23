@@ -33,11 +33,12 @@ Web UI (Next.js :3000) + CLI (`tp`)
     ┌────┴────────────────────┐
     │    Ollama (:11434)      │
     │  Qwen2.5-3B (Metal GPU) │  ← Chat, summarization
-    │  nomic-embed-text        │  ← Embeddings for RAG
+    │  Qwen3-Embed-0.6B       │  ← Embeddings for RAG
     └────┬────────────────────┘
          │
     ┌────┴────────────────────┐
-    │    faster-whisper        │  ← Speech-to-text
+    │    Moonshine Voice       │  ← Speech-to-text
+    │    Kokoro-82M            │  ← Text-to-speech
     │    ChromaDB (vectors)    │
     │    SQLite (structured)   │
     └─────────────────────────┘
@@ -149,6 +150,11 @@ python -m cli.main cmd "find all python files modified in the last week"
 # Git digest
 python -m cli.main git-digest /path/to/repo
 
+# Text-to-speech
+python -m cli.main speak "Hello from TinkerPilot"
+python -m cli.main speak "Save this" --output speech.wav --voice adam
+python -m cli.main voices
+
 # Daily digest
 python -m cli.main digest
 
@@ -175,6 +181,8 @@ python -m cli.main serve
 | POST | `/api/utils/explain` | Explain code |
 | POST | `/api/utils/cmd` | Natural language to shell command |
 | POST | `/api/utils/git-digest` | Summarize git activity |
+| POST | `/api/utils/speak` | Text-to-speech (returns WAV) |
+| GET | `/api/utils/voices` | List available TTS voices |
 
 ## AI Models
 
@@ -182,7 +190,8 @@ python -m cli.main serve
 |-------|---------|------|--------|
 | Qwen2.5-3B-Instruct | Chat, summarization, code analysis | ~2.0 GB | Ollama (Metal GPU) |
 | Qwen3-Embedding 0.6B | Text embeddings for RAG | ~639 MB | Ollama (Metal GPU) |
-| Whisper small (int8) | Speech-to-text | ~500 MB | faster-whisper |
+| Moonshine Voice | Speech-to-text (streaming) | ~250 MB | Moonshine (ONNX) |
+| Kokoro-82M | Text-to-speech (6 voices) | ~82 MB | PyTorch (MPS GPU) |
 
 See [docs/MODEL_SELECTION.md](docs/MODEL_SELECTION.md) for detailed rationale and alternatives analysis.
 

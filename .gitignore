@@ -11,10 +11,10 @@ build/
 venv/
 env/
 
-# Models (large files)
-models/*.gguf
-models/*.bin
-models/*.pt
+# Models (managed by Ollama / auto-downloaded by Moonshine + Kokoro)
+models/
+*.gguf
+*.onnx
 
 # Data
 data/chroma/
