@@ -62,6 +62,33 @@ async def transcribe_audio(
         f.write(content)
 
     try:
+        # Convert webm/mp4 from browser to wav if needed
+        import subprocess
+
+        if suffix.lower() in [".webm", ".mp4", ".m4a"]:
+            wav_path = audio_path.with_suffix(".wav")
+            try:
+                subprocess.run(
+                    [
+                        "ffmpeg",
+                        "-y",
+                        "-i",
+                        str(audio_path),
+                        "-ar",
+                        "16000",
+                        "-ac",
+                        "1",
+                        str(wav_path),
+                    ],
+                    check=True,
+                    capture_output=True,
+                )
+                audio_path.unlink(missing_ok=True)
+                audio_path = wav_path
+            except Exception as e:
+                logger.warning(f"ffmpeg conversion failed: {e}")
+                # We will just let it continue and fail gracefully if moonshine can't read it
+
         # Transcribe
         result = transcribe_file(str(audio_path), language=language)
         transcript = result["text"]

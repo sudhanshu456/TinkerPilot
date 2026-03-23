@@ -26,6 +26,9 @@ export default function MeetingsPage() {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [selected, setSelected] = useState<MeetingDetail | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<'summary' | 'transcript'>('summary');
 
@@ -45,35 +48,81 @@ export default function MeetingsPage() {
       .catch((e) => setError(e.message));
   };
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const uploadFile = async (file: File) => {
     setUploading(true);
     setError('');
     const form = new FormData();
     form.append('file', file);
-    form.append('title', file.name);
+    form.append('title', file.name.replace(/\.[^/.]+$/, ""));
 
     try {
       const res = await fetch('/api/meetings/transcribe', { method: 'POST', body: form });
-      if (!res.ok) throw new Error('Transcription failed');
+      if (!res.ok) throw new Error('Transcription failed: ' + await res.text());
       const data = await res.json();
       loadMeetings();
       setSelected({
         id: data.meeting_id,
-        title: file.name,
+        title: form.get('title') as string,
         date: new Date().toISOString(),
         transcript: data.transcript,
         summary: data.summary,
         duration_seconds: data.duration_seconds,
       });
+      setTab('summary');
     } catch (err: any) {
       setError(err.message);
     } finally {
       setUploading(false);
     }
   };
+
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) uploadFile(file);
+    e.target.value = ''; // Reset input
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: BlobPart[] = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        const ext = MediaRecorder.isTypeSupported('audio/webm') ? 'webm' : 'mp4';
+        const blob = new Blob(chunks, { type: `audio/${ext}` });
+        const file = new File([blob], `Live_Meeting_${new Date().toLocaleDateString().replace(/\//g, '-')}.${ext}`, { type: blob.type });
+        stream.getTracks().forEach(track => track.stop());
+        uploadFile(file);
+      };
+
+      recorder.start(1000);
+      setMediaRecorder(recorder);
+      setIsRecording(true);
+      setRecordingTime(0);
+    } catch (err: any) {
+      setError('Microphone access denied or unavailable: ' + err.message);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder && isRecording) {
+      mediaRecorder.stop();
+      setIsRecording(false);
+    }
+  };
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isRecording) {
+      interval = setInterval(() => setRecordingTime((prev) => prev + 1), 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isRecording]);
 
   const deleteMeeting = async (id: number) => {
     await fetch(`/api/meetings/${id}`, { method: 'DELETE' });
@@ -95,17 +144,32 @@ export default function MeetingsPage() {
           <h1 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Meetings</h1>
         </div>
 
-        {/* Upload */}
-        <label style={{
-          display: 'block', textAlign: 'center', padding: '0.8rem',
-          background: 'var(--accent)', borderRadius: '8px',
-          cursor: uploading ? 'not-allowed' : 'pointer', marginBottom: '1rem',
-          color: 'white', fontWeight: 600, fontSize: '0.9rem',
-          opacity: uploading ? 0.6 : 1,
-        }}>
-          {uploading ? 'Transcribing...' : 'Upload Audio'}
-          <input type="file" accept="audio/*" onChange={handleUpload} hidden disabled={uploading} />
-        </label>
+        {/* Upload & Record */}
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+          <label style={{
+            flex: 1, textAlign: 'center', padding: '0.8rem',
+            background: 'var(--accent)', borderRadius: '8px',
+            cursor: uploading || isRecording ? 'not-allowed' : 'pointer',
+            color: 'white', fontWeight: 600, fontSize: '0.9rem',
+            opacity: uploading || isRecording ? 0.6 : 1,
+          }}>
+            {uploading ? 'Processing...' : 'Upload Audio'}
+            <input type="file" accept="audio/*" onChange={handleUpload} hidden disabled={uploading || isRecording} />
+          </label>
+          <button
+            onClick={isRecording ? stopRecording : startRecording}
+            disabled={uploading}
+            style={{
+              flex: 1, padding: '0.8rem', borderRadius: '8px', border: 'none',
+              background: isRecording ? 'var(--danger)' : 'var(--bg-tertiary)',
+              color: 'white', fontWeight: 600, fontSize: '0.9rem',
+              cursor: uploading ? 'not-allowed' : 'pointer',
+              opacity: uploading ? 0.6 : 1,
+            }}
+          >
+            {isRecording ? `Stop (${formatDuration(recordingTime)})` : 'Record Live'}
+          </button>
+        </div>
 
         {error && (
           <div style={{ color: 'var(--danger)', fontSize: '0.8rem', marginBottom: '0.5rem' }}>{error}</div>
