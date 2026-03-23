@@ -60,7 +60,8 @@ async def unified_search(req: SearchRequest):
             matched = [
                 t
                 for t in tasks
-                if query_lower in t.title.lower() or query_lower in t.description.lower()
+                if query_lower in (t.title or "").lower()
+                or query_lower in (t.description or "").lower()
             ]
             results["tasks"] = [
                 {
@@ -80,7 +81,8 @@ async def unified_search(req: SearchRequest):
             matched = [
                 m
                 for m in meetings
-                if query_lower in m.title.lower() or query_lower in m.transcript.lower()
+                if query_lower in (m.title or "").lower()
+                or query_lower in (m.transcript or "").lower()
             ]
             results["meetings"] = [
                 {

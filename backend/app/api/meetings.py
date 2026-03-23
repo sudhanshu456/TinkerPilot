@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from pydantic import BaseModel
 
 from app.config import DATA_DIR
@@ -46,8 +46,8 @@ class MeetingSummaryRequest(BaseModel):
 @router.post("/meetings/transcribe")
 async def transcribe_audio(
     file: UploadFile = File(...),
-    title: Optional[str] = None,
-    language: Optional[str] = None,
+    title: Optional[str] = Form(None),
+    language: Optional[str] = Form(None),
 ):
     """Upload an audio file, transcribe it, and generate a summary."""
     from app.core.whisper_stt import transcribe_file

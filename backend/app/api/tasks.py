@@ -8,7 +8,7 @@ import json
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Body, HTTPException
 from pydantic import BaseModel
 
 from app.db.sqlite import get_session
@@ -120,7 +120,7 @@ async def delete_task(task_id: int):
 
 
 @router.post("/tasks/extract")
-async def extract_tasks_from_text(text: str):
+async def extract_tasks_from_text(text: str = Body(..., embed=True)):
     """Extract action items from arbitrary text using LLM."""
     from app.core.llm import generate
 
