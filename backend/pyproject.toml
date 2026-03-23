@@ -8,8 +8,7 @@ version = "0.1.0"
 description = "Local AI assistant for developers - privacy-first, offline productivity"
 requires-python = ">=3.10"
 dependencies = [
-    # AI / ML
-    "llama-cpp-python>=0.3.0",
+    # AI / ML (Ollama handles LLM + embeddings, no compilation needed)
     "faster-whisper>=1.0.0",
     "chromadb>=0.5.0",
     # API

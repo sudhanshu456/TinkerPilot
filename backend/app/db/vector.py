@@ -1,7 +1,7 @@
 """
 ChromaDB vector store setup for RAG.
 Persistent storage at ~/.tinkerpilot/data/chroma/
-Uses custom embedding function backed by our llama.cpp embedder.
+Uses custom embedding function backed by Ollama embeddings.
 """
 
 import logging
@@ -18,22 +18,13 @@ logger = logging.getLogger(__name__)
 _client: Optional[chromadb.ClientAPI] = None
 
 
-class LlamaCppEmbeddingFunction(EmbeddingFunction):
-    """Custom ChromaDB embedding function using our llama.cpp embedder."""
+class OllamaEmbeddingFunction(EmbeddingFunction):
+    """Custom ChromaDB embedding function using Ollama."""
 
     def __call__(self, input: Documents) -> Embeddings:
         from app.core.embeddings import embed_batch
 
         return embed_batch(input, is_query=False)
-
-
-class LlamaCppQueryEmbeddingFunction(EmbeddingFunction):
-    """Embedding function with query prefix for search queries."""
-
-    def __call__(self, input: Documents) -> Embeddings:
-        from app.core.embeddings import embed_batch
-
-        return embed_batch(input, is_query=True)
 
 
 def get_chroma_client() -> chromadb.ClientAPI:
@@ -58,7 +49,7 @@ def get_collection(collection_name: Optional[str] = None) -> chromadb.Collection
 
     collection = client.get_or_create_collection(
         name=name,
-        embedding_function=LlamaCppEmbeddingFunction(),
+        embedding_function=OllamaEmbeddingFunction(),
         metadata={"hnsw:space": "cosine"},
     )
     return collection
@@ -80,11 +71,11 @@ def query_collection(
 
     collection = client.get_or_create_collection(
         name=name,
-        embedding_function=LlamaCppEmbeddingFunction(),
+        embedding_function=OllamaEmbeddingFunction(),
         metadata={"hnsw:space": "cosine"},
     )
 
-    # Embed query with query prefix
+    # Embed query
     query_embedding = embed_query(query_text)
 
     kwargs = {

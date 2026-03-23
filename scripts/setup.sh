@@ -1,6 +1,6 @@
 #!/bin/bash
 # TinkerPilot Setup Script
-# Sets up the complete development environment on macOS
+# One-command setup for macOS. Installs everything needed.
 
 set -e
 
@@ -15,27 +15,34 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BACKEND_DIR="$PROJECT_ROOT/backend"
 FRONTEND_DIR="$PROJECT_ROOT/frontend"
 
-# Colors
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-info() { echo -e "${GREEN}[INFO]${NC} $1"; }
+info() { echo -e "${GREEN}[OK]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1"; }
+step() { echo -e "\n${GREEN}[STEP]${NC} $1"; }
 
-# ─── Check Prerequisites ─────────────────────────────────────
+# ─── 1. Check Prerequisites ─────────────────────────────────
 
-info "Checking prerequisites..."
+step "Checking prerequisites..."
 
-# Python — need 3.10-3.13 (3.14+ is too new for llama-cpp-python / ML packages)
+# Homebrew
+if ! command -v brew &> /dev/null; then
+    error "Homebrew not found. Install it first:"
+    echo '  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+    exit 1
+fi
+info "Homebrew found"
+
+# Python (any 3.10+ works — no C++ compilation needed)
 PYTHON_CMD=""
 for candidate in python3.12 python3.13 python3.11 python3.10 python3; do
     if command -v "$candidate" &> /dev/null; then
-        PY_VER=$("$candidate" --version 2>&1 | awk '{print $2}')
-        PY_MINOR=$(echo "$PY_VER" | cut -d. -f2)
-        if [[ "$PY_MINOR" -ge 10 && "$PY_MINOR" -le 13 ]]; then
+        PY_MINOR=$("$candidate" --version 2>&1 | awk '{print $2}' | cut -d. -f2)
+        if [[ "$PY_MINOR" -ge 10 ]]; then
             PYTHON_CMD="$candidate"
             break
         fi
@@ -43,158 +50,123 @@ for candidate in python3.12 python3.13 python3.11 python3.10 python3; do
 done
 
 if [[ -z "$PYTHON_CMD" ]]; then
-    error "No compatible Python found (need 3.10-3.13)."
-    error "Python 3.14+ is too new — ML packages don't support it yet."
-    error "Install a compatible version: brew install python@3.12"
+    error "Python 3.10+ not found. Install: brew install python@3.12"
     exit 1
 fi
-
-PYTHON_VERSION=$("$PYTHON_CMD" --version 2>&1 | awk '{print $2}')
-info "Python: $PYTHON_VERSION ($PYTHON_CMD)"
+info "Python: $("$PYTHON_CMD" --version 2>&1 | awk '{print $2}') ($PYTHON_CMD)"
 
 # Node.js
 if ! command -v node &> /dev/null; then
-    error "Node.js not found. Install it: brew install node"
+    error "Node.js not found. Install: brew install node"
     exit 1
 fi
+info "Node.js: $(node --version)"
 
-NODE_VERSION=$(node --version)
-info "Node.js: $NODE_VERSION"
+# ─── 2. Install Ollama ──────────────────────────────────────
 
-# Git
-if ! command -v git &> /dev/null; then
-    warn "Git not found. Some features (git-digest) won't work."
-fi
+step "Setting up Ollama (local AI inference)..."
 
-# CMake (required for compiling llama-cpp-python)
-if ! command -v cmake &> /dev/null; then
-    error "CMake not found. Install it: brew install cmake"
-    exit 1
-fi
-info "CMake: $(cmake --version | head -1 | awk '{print $3}')"
-
-# Check macOS for Metal support
-if [[ "$(uname)" == "Darwin" ]]; then
-    ARCH=$(uname -m)
-    if [[ "$ARCH" == "arm64" ]]; then
-        info "Platform: macOS Apple Silicon (Metal GPU acceleration available)"
-        CMAKE_METAL_FLAG="-DGGML_METAL=on"
-    else
-        info "Platform: macOS Intel"
-        CMAKE_METAL_FLAG=""
-    fi
+if ! command -v ollama &> /dev/null; then
+    info "Installing Ollama..."
+    brew install ollama
 else
-    info "Platform: $(uname -s)"
-    CMAKE_METAL_FLAG=""
+    info "Ollama already installed: $(ollama --version 2>&1 | head -1)"
 fi
 
-# Validate ccache if present (broken ccache is a common build-killer)
-if command -v ccache &> /dev/null; then
-    if ! ccache --version &> /dev/null; then
-        warn "ccache is installed but broken (likely a stale dylib)."
-        warn "Attempting to fix: brew reinstall ccache"
-        brew reinstall ccache 2>&1 | tail -3
-        if ! ccache --version &> /dev/null; then
-            warn "ccache still broken. Disabling it for compilation."
-            export GGML_CCACHE=OFF
-        else
-            info "ccache fixed."
+# Start Ollama if not running
+if ! curl -s http://localhost:11434/api/tags &> /dev/null; then
+    info "Starting Ollama server..."
+    ollama serve &> /dev/null &
+    OLLAMA_PID=$!
+    for i in $(seq 1 30); do
+        if curl -s http://localhost:11434/api/tags &> /dev/null; then
+            break
         fi
+        sleep 1
+    done
+    if ! curl -s http://localhost:11434/api/tags &> /dev/null; then
+        error "Ollama failed to start. Try running 'ollama serve' manually."
+        exit 1
     fi
+    info "Ollama server started"
+else
+    info "Ollama server already running"
 fi
 
-echo ""
+# ─── 3. Pull Models ─────────────────────────────────────────
 
-# ─── Create User Data Directory ──────────────────────────────
+step "Pulling AI models (this downloads ~2GB on first run)..."
 
-info "Creating data directories..."
-mkdir -p ~/.tinkerpilot/data/{chroma,audio,uploads}
-info "Data directory: ~/.tinkerpilot/"
+# LLM
+if ollama list 2>/dev/null | grep -q "qwen2.5:3b"; then
+    info "LLM model already downloaded: qwen2.5:3b"
+else
+    info "Downloading LLM: qwen2.5:3b (~2GB)..."
+    ollama pull qwen2.5:3b
+    info "LLM model ready"
+fi
 
-# ─── Backend Setup ────────────────────────────────────────────
+# Embeddings
+if ollama list 2>/dev/null | grep -q "nomic-embed-text"; then
+    info "Embedding model already downloaded: nomic-embed-text"
+else
+    info "Downloading embedding model: nomic-embed-text (~274MB)..."
+    ollama pull nomic-embed-text
+    info "Embedding model ready"
+fi
 
-echo ""
-info "Setting up Python backend..."
+# ─── 4. Python Backend ──────────────────────────────────────
+
+step "Setting up Python backend..."
 
 cd "$BACKEND_DIR"
 
-# Remove old venv if created with wrong Python version
+# Recreate venv if Python version changed
 if [ -d ".venv" ]; then
-    VENV_PY_VER=$(.venv/bin/python3 --version 2>&1 | awk '{print $2}' | cut -d. -f1,2)
-    WANT_PY_VER=$("$PYTHON_CMD" --version 2>&1 | awk '{print $2}' | cut -d. -f1,2)
-    if [[ "$VENV_PY_VER" != "$WANT_PY_VER" ]]; then
-        warn "Existing venv uses Python $VENV_PY_VER, need $WANT_PY_VER. Recreating..."
+    VENV_PY=$(.venv/bin/python3 --version 2>&1 | awk '{print $2}' | cut -d. -f1,2)
+    WANT_PY=$("$PYTHON_CMD" --version 2>&1 | awk '{print $2}' | cut -d. -f1,2)
+    if [[ "$VENV_PY" != "$WANT_PY" ]]; then
+        warn "Recreating venv (was Python $VENV_PY, need $WANT_PY)..."
         rm -rf .venv
     fi
 fi
 
-# Create virtual environment
 if [ ! -d ".venv" ]; then
-    info "Creating virtual environment with $PYTHON_CMD..."
+    info "Creating virtual environment..."
     "$PYTHON_CMD" -m venv .venv
 fi
 
-# Activate
 source .venv/bin/activate
-info "Virtual environment activated."
 
-# Install llama-cpp-python with Metal support
-info "Installing llama-cpp-python with Metal GPU acceleration..."
-info "This may take a few minutes (compiling from source)..."
-
-if [[ -n "$CMAKE_METAL_FLAG" ]]; then
-    CMAKE_ARGS="$CMAKE_METAL_FLAG" pip install llama-cpp-python --no-cache-dir 2>&1 | tail -5
-else
-    pip install llama-cpp-python --no-cache-dir 2>&1 | tail -5
-fi
-
-# Install remaining dependencies
 info "Installing Python dependencies..."
-pip install -e ".[dev]" 2>&1 | tail -5
+pip install --upgrade pip -q
+pip install -e . 2>&1 | tail -3
+info "Python dependencies installed"
 
-info "Backend dependencies installed."
+# ─── 5. Frontend ─────────────────────────────────────────────
 
-# ─── Download Models ──────────────────────────────────────────
-
-echo ""
-info "Downloading AI models..."
-info "This will download ~2.1 GB of model files."
-echo ""
-
-python "$SCRIPT_DIR/download_models.py"
-
-# ─── Frontend Setup ───────────────────────────────────────────
-
-echo ""
-info "Setting up Next.js frontend..."
+step "Setting up Next.js frontend..."
 
 cd "$FRONTEND_DIR"
+npm install --silent 2>&1 | tail -3
+info "Frontend dependencies installed"
 
-if command -v npm &> /dev/null; then
-    npm install 2>&1 | tail -5
-    info "Frontend dependencies installed."
-else
-    warn "npm not found. Frontend setup skipped."
-    warn "Install Node.js and run: cd frontend && npm install"
-fi
+# ─── 6. Initialize Database ─────────────────────────────────
 
-# ─── Initialize Database ─────────────────────────────────────
-
-echo ""
-info "Initializing database..."
+step "Initializing database..."
 
 cd "$BACKEND_DIR"
 source .venv/bin/activate
 
 python -c "
-import sys
-sys.path.insert(0, '.')
+import sys; sys.path.insert(0, '.')
 from app.config import ensure_directories
 from app.db.sqlite import init_db
 ensure_directories()
 init_db()
 print('Database initialized.')
 "
+info "Database ready"
 
 # ─── Done ─────────────────────────────────────────────────────
 
@@ -203,23 +175,19 @@ echo "============================================"
 echo -e "  ${GREEN}Setup Complete!${NC}"
 echo "============================================"
 echo ""
-echo "  To start TinkerPilot:"
+echo "  To start TinkerPilot (one command):"
 echo ""
-echo "  1. Start the backend:"
-echo "     cd backend"
-echo "     source .venv/bin/activate"
-echo "     python -m cli.main serve"
+echo "    ./scripts/start.sh"
 echo ""
-echo "  2. Start the frontend (in another terminal):"
-echo "     cd frontend"
-echo "     npm run dev"
+echo "  Or start manually:"
 echo ""
-echo "  3. Open http://localhost:3000"
+echo "    # Terminal 1: backend"
+echo "    cd backend && source .venv/bin/activate"
+echo "    python -m cli.main serve"
 echo ""
-echo "  CLI usage (with venv activated):"
-echo "     python -m cli.main ask 'how does auth work?'"
-echo "     python -m cli.main ingest ~/my-project"
-echo "     python -m cli.main tasks"
-echo "     python -m cli.main --help"
+echo "    # Terminal 2: frontend"
+echo "    cd frontend && npm run dev"
+echo ""
+echo "    # Open http://localhost:3000"
 echo ""
 echo "============================================"

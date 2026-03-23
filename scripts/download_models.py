@@ -1,144 +1,81 @@
 #!/usr/bin/env python3
 """
-Download required GGUF models for TinkerPilot.
-Downloads from HuggingFace Hub to the models/ directory.
+Pull required Ollama models for TinkerPilot.
+This is a convenience wrapper — setup.sh already handles this.
 """
 
-import os
+import subprocess
 import sys
-import urllib.request
-import hashlib
-from pathlib import Path
 
-# Model definitions: (filename, url, size_mb_approx)
-MODELS = {
-    "llm": {
-        "filename": "qwen2.5-3b-instruct-q4_k_m.gguf",
-        "url": "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf",
-        "size_mb": 2030,
-        "description": "Qwen2.5-3B-Instruct (Q4_K_M) - Main LLM for chat, summarization, code explanation",
+
+MODELS = [
+    {
+        "name": "qwen2.5:3b",
+        "description": "Qwen2.5 3B — main LLM for chat, summarization, code explanation",
+        "size": "~2.0 GB",
     },
-    "embedding": {
-        "filename": "nomic-embed-text-v1.5-Q4_K_M.gguf",
-        "url": "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/resolve/main/nomic-embed-text-v1.5.Q4_K_M.gguf",
-        "size_mb": 78,
-        "description": "Nomic Embed Text v1.5 (Q4_K_M) - Text embeddings for RAG",
+    {
+        "name": "nomic-embed-text",
+        "description": "Nomic Embed Text — text embeddings for RAG semantic search",
+        "size": "~274 MB",
     },
-}
-
-# faster-whisper downloads its own models automatically, no manual download needed
+]
 
 
-def get_models_dir() -> Path:
-    """Get the models directory path."""
-    script_dir = Path(__file__).resolve().parent
-    models_dir = script_dir.parent / "models"
-    models_dir.mkdir(parents=True, exist_ok=True)
-    return models_dir
-
-
-def download_with_progress(url: str, dest: Path, description: str):
-    """Download a file with a simple progress indicator."""
-    print(f"\n  Downloading: {description}")
-    print(f"  URL: {url}")
-    print(f"  Destination: {dest}")
-
-    if dest.exists():
-        print(f"  Already exists, skipping.")
-        return True
-
-    # Use a temp file to avoid partial downloads
-    temp_dest = dest.with_suffix(dest.suffix + ".tmp")
-
+def check_ollama():
+    """Verify Ollama is installed and running."""
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "TinkerPilot/0.1"})
-        with urllib.request.urlopen(req) as response:
-            total = int(response.headers.get("Content-Length", 0))
-            downloaded = 0
-            block_size = 1024 * 1024  # 1MB chunks
-
-            with open(temp_dest, "wb") as f:
-                while True:
-                    chunk = response.read(block_size)
-                    if not chunk:
-                        break
-                    f.write(chunk)
-                    downloaded += len(chunk)
-                    if total > 0:
-                        pct = (downloaded / total) * 100
-                        mb_done = downloaded / (1024 * 1024)
-                        mb_total = total / (1024 * 1024)
-                        sys.stdout.write(
-                            f"\r  Progress: {mb_done:.1f} / {mb_total:.1f} MB ({pct:.1f}%)"
-                        )
-                        sys.stdout.flush()
-
-        print()  # newline after progress
-        temp_dest.rename(dest)
-        print(f"  Done.")
-        return True
-
-    except Exception as e:
-        print(f"\n  ERROR downloading: {e}")
-        if temp_dest.exists():
-            temp_dest.unlink()
+        result = subprocess.run(
+            ["ollama", "list"], capture_output=True, text=True, timeout=10
+        )
+        return result.returncode == 0
+    except FileNotFoundError:
+        print("ERROR: Ollama is not installed.")
+        print("Install it with: brew install ollama")
+        return False
+    except subprocess.TimeoutExpired:
+        print("ERROR: Ollama is not responding. Start it with: ollama serve")
         return False
 
 
+def pull_model(name: str):
+    """Pull a model via Ollama."""
+    print(f"  Pulling {name}...")
+    result = subprocess.run(["ollama", "pull", name], timeout=600)
+    return result.returncode == 0
+
+
 def main():
-    print("=" * 60)
-    print("TinkerPilot - Model Downloader")
-    print("=" * 60)
+    print("=" * 50)
+    print("TinkerPilot - Model Setup (via Ollama)")
+    print("=" * 50)
 
-    models_dir = get_models_dir()
-    print(f"\nModels directory: {models_dir}")
+    if not check_ollama():
+        sys.exit(1)
 
-    # Parse args for selective download
-    targets = sys.argv[1:] if len(sys.argv) > 1 else list(MODELS.keys())
+    # Check which models are already pulled
+    result = subprocess.run(["ollama", "list"], capture_output=True, text=True)
+    installed = result.stdout if result.returncode == 0 else ""
 
-    # Validate targets
-    for t in targets:
-        if t not in MODELS:
-            print(f"Unknown model: {t}. Available: {', '.join(MODELS.keys())}")
-            sys.exit(1)
+    print("\nModels needed:")
+    for m in MODELS:
+        status = "INSTALLED" if m["name"] in installed else m["size"]
+        print(f"  [{m['name']}] {m['description']} — {status}")
 
-    # Show plan
-    print("\nModels to download:")
-    total_size = 0
-    for name in targets:
-        m = MODELS[name]
-        dest = models_dir / m["filename"]
-        status = "SKIP (exists)" if dest.exists() else f"~{m['size_mb']} MB"
-        if not dest.exists():
-            total_size += m["size_mb"]
-        print(f"  [{name}] {m['description']} - {status}")
+    print()
+    for m in MODELS:
+        if m["name"] not in installed:
+            if not pull_model(m["name"]):
+                print(f"  FAILED to pull {m['name']}")
+                sys.exit(1)
+            print(f"  {m['name']} ready.")
+        else:
+            print(f"  {m['name']} already installed, skipping.")
 
-    if total_size == 0:
-        print("\nAll models already downloaded.")
-        return
-
-    print(f"\nTotal download size: ~{total_size} MB")
-    print("Starting downloads...\n")
-
-    # Download
-    success = True
-    for name in targets:
-        m = MODELS[name]
-        dest = models_dir / m["filename"]
-        if not download_with_progress(m["url"], dest, m["description"]):
-            success = False
-            print(f"  FAILED to download {name}. You can retry later.")
-
-    print("\n" + "=" * 60)
-    if success:
-        print("All models downloaded successfully!")
-    else:
-        print("Some downloads failed. Re-run this script to retry.")
-
-    # Note about whisper
-    print("\nNote: Whisper model (for speech-to-text) is downloaded automatically")
-    print("by faster-whisper on first use. No manual download needed.")
-    print("=" * 60)
+    print("\n" + "=" * 50)
+    print("All models ready!")
+    print("Note: Whisper (speech-to-text) downloads automatically on first use.")
+    print("=" * 50)
 
 
 if __name__ == "__main__":

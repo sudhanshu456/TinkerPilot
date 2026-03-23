@@ -1,100 +1,85 @@
 """
-Embedding wrapper using llama-cpp-python.
-Uses nomic-embed-text-v1.5 GGUF for generating text embeddings locally.
+Embedding wrapper using Ollama.
+Uses nomic-embed-text for generating text embeddings locally via Ollama API.
 Embeddings are used for RAG (semantic search over documents).
 """
 
 import logging
-import os
 from typing import Optional
 
-from llama_cpp import Llama
+import httpx
 
 from app.config import get_config
 
 logger = logging.getLogger(__name__)
 
-_embedder: Optional[Llama] = None
-_loaded_path: Optional[str] = None
+OLLAMA_BASE = "http://localhost:11434"
 
 
-def get_embedder() -> Llama:
-    """Get or initialize the embedding model singleton."""
-    global _embedder, _loaded_path
+def _embed_via_ollama(text: str, model: Optional[str] = None) -> list[float]:
+    """Call Ollama embeddings API for a single text."""
     config = get_config()
+    model_name = model or config.embedding.model_name
 
-    if _embedder is not None and _loaded_path == config.embedding.model_path:
-        return _embedder
-
-    model_path = config.embedding.model_path
-    if not os.path.exists(model_path):
-        raise FileNotFoundError(
-            f"Embedding model not found at {model_path}. Run: python scripts/download_models.py"
-        )
-
-    logger.info(f"Loading embedding model from {model_path}...")
-    _embedder = Llama(
-        model_path=model_path,
-        n_ctx=config.embedding.n_ctx,
-        n_gpu_layers=config.embedding.n_gpu_layers,
-        embedding=True,
-        verbose=False,
+    r = httpx.post(
+        f"{OLLAMA_BASE}/api/embed",
+        json={"model": model_name, "input": text},
+        timeout=30,
     )
-    _loaded_path = model_path
-    logger.info("Embedding model loaded successfully.")
-    return _embedder
+    r.raise_for_status()
+    data = r.json()
+    # Ollama returns {"embeddings": [[...], ...]}
+    return data["embeddings"][0]
+
+
+def _embed_batch_via_ollama(texts: list[str], model: Optional[str] = None) -> list[list[float]]:
+    """Call Ollama embeddings API for a batch of texts."""
+    config = get_config()
+    model_name = model or config.embedding.model_name
+
+    r = httpx.post(
+        f"{OLLAMA_BASE}/api/embed",
+        json={"model": model_name, "input": texts},
+        timeout=60,
+    )
+    r.raise_for_status()
+    data = r.json()
+    return data["embeddings"]
+
+
+def get_embedder():
+    """Verify Ollama embedding model is available. Returns model name."""
+    config = get_config()
+    return config.embedding.model_name
 
 
 def unload_embedder():
-    """Unload embedding model to free memory."""
-    global _embedder, _loaded_path
-    if _embedder is not None:
-        del _embedder
-        _embedder = None
-        _loaded_path = None
-        logger.info("Embedding model unloaded.")
+    """No-op for Ollama (server manages model lifecycle)."""
+    pass
 
 
 def embed_text(text: str) -> list[float]:
     """Generate embedding vector for a single text string."""
-    embedder = get_embedder()
-    # nomic-embed-text requires a task prefix for best results
-    prefixed = f"search_document: {text}"
-    result = embedder.embed(prefixed)
-    # llama-cpp-python returns list of lists for embed()
-    if isinstance(result[0], list):
-        return result[0]
-    return result
+    # nomic-embed-text in Ollama handles prefixes internally
+    return _embed_via_ollama(text)
 
 
 def embed_query(query: str) -> list[float]:
-    """Generate embedding vector for a search query.
-    Uses 'search_query:' prefix as recommended by nomic-embed-text."""
-    embedder = get_embedder()
-    prefixed = f"search_query: {query}"
-    result = embedder.embed(prefixed)
-    if isinstance(result[0], list):
-        return result[0]
-    return result
+    """Generate embedding vector for a search query."""
+    return _embed_via_ollama(query)
 
 
 def embed_batch(texts: list[str], is_query: bool = False) -> list[list[float]]:
     """Generate embeddings for a batch of texts."""
-    embedder = get_embedder()
-    prefix = "search_query: " if is_query else "search_document: "
-    prefixed = [f"{prefix}{t}" for t in texts]
+    if not texts:
+        return []
 
-    results = []
-    # Process in small batches to avoid OOM on 8GB machine
+    # Process in batches to avoid timeouts on large sets
     batch_size = 32
-    for i in range(0, len(prefixed), batch_size):
-        batch = prefixed[i : i + batch_size]
-        batch_results = embedder.embed(batch)
-        # Normalize the result shape
-        for r in batch_results:
-            if isinstance(r, list):
-                results.append(r)
-            else:
-                results.append([r])
+    results = []
+    for i in range(0, len(texts), batch_size):
+        batch = texts[i : i + batch_size]
+        batch_results = _embed_batch_via_ollama(batch)
+        results.extend(batch_results)
 
     return results

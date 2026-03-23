@@ -28,8 +28,8 @@ async def lifespan(app: FastAPI):
     init_db()
     config = get_config()
     logger.info(f"Server config: host={config.host}, port={config.port}")
-    logger.info(f"LLM model: {config.llm.model_path}")
-    logger.info(f"Embedding model: {config.embedding.model_path}")
+    logger.info(f"LLM model: {config.llm.model_name} (via Ollama)")
+    logger.info(f"Embedding model: {config.embedding.model_name} (via Ollama)")
     yield
     logger.info("Shutting down TinkerPilot backend.")
 

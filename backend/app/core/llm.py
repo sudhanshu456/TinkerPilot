@@ -1,61 +1,53 @@
 """
-LLM wrapper using llama-cpp-python.
-Provides singleton model loading with Metal GPU acceleration,
-synchronous generate and streaming methods.
-Model-agnostic: works with any GGUF model (Qwen, Gemma, Llama, etc.)
+LLM wrapper using Ollama.
+Provides generate and streaming methods via Ollama's local HTTP API.
+Model-agnostic: works with any model available in Ollama.
 """
 
+import json
 import logging
-import os
-from pathlib import Path
 from typing import Generator, Optional
 
-from llama_cpp import Llama
+import httpx
 
 from app.config import get_config
 
 logger = logging.getLogger(__name__)
 
-# Singleton instance
-_llm: Optional[Llama] = None
-_loaded_model_path: Optional[str] = None
+OLLAMA_BASE = "http://localhost:11434"
 
 
-def get_llm() -> Llama:
-    """Get or initialize the LLM singleton."""
-    global _llm, _loaded_model_path
+def _check_ollama():
+    """Check if Ollama is running and the model is available."""
     config = get_config()
-
-    if _llm is not None and _loaded_model_path == config.llm.model_path:
-        return _llm
-
-    model_path = config.llm.model_path
-    if not os.path.exists(model_path):
-        raise FileNotFoundError(
-            f"LLM model not found at {model_path}. Run: python scripts/download_models.py"
+    try:
+        r = httpx.get(f"{OLLAMA_BASE}/api/tags", timeout=5)
+        r.raise_for_status()
+        models = [m["name"] for m in r.json().get("models", [])]
+        # Check if our model (or a variant of it) is available
+        model = config.llm.model_name
+        if not any(model in m for m in models):
+            raise RuntimeError(
+                f"Model '{model}' not found in Ollama. "
+                f"Run: ollama pull {model}\n"
+                f"Available models: {', '.join(models) or 'none'}"
+            )
+    except httpx.ConnectError:
+        raise RuntimeError(
+            "Ollama is not running. Start it with: ollama serve\nOr install: brew install ollama"
         )
 
-    logger.info(f"Loading LLM from {model_path}...")
-    _llm = Llama(
-        model_path=model_path,
-        n_ctx=config.llm.n_ctx,
-        n_gpu_layers=config.llm.n_gpu_layers,
-        n_threads=config.llm.n_threads,
-        verbose=config.debug,
-    )
-    _loaded_model_path = model_path
-    logger.info("LLM loaded successfully.")
-    return _llm
+
+def get_llm():
+    """Verify Ollama is ready. Returns the model name."""
+    _check_ollama()
+    config = get_config()
+    return config.llm.model_name
 
 
 def unload_llm():
-    """Unload the LLM to free memory (e.g., before loading whisper)."""
-    global _llm, _loaded_model_path
-    if _llm is not None:
-        del _llm
-        _llm = None
-        _loaded_model_path = None
-        logger.info("LLM unloaded.")
+    """No-op for Ollama (server manages model lifecycle)."""
+    pass
 
 
 def generate(
@@ -67,23 +59,33 @@ def generate(
 ) -> str:
     """Generate a complete response (non-streaming)."""
     config = get_config()
-    llm = get_llm()
 
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": prompt})
 
-    response = llm.create_chat_completion(
-        messages=messages,
-        max_tokens=max_tokens or config.llm.max_tokens,
-        temperature=temperature or config.llm.temperature,
-        top_p=config.llm.top_p,
-        repeat_penalty=config.llm.repeat_penalty,
-        stop=stop,
-    )
+    payload = {
+        "model": config.llm.model_name,
+        "messages": messages,
+        "stream": False,
+        "options": {
+            "temperature": temperature or config.llm.temperature,
+            "num_predict": max_tokens or config.llm.max_tokens,
+            "top_p": config.llm.top_p,
+            "repeat_penalty": config.llm.repeat_penalty,
+        },
+    }
+    if stop:
+        payload["options"]["stop"] = stop
 
-    return response["choices"][0]["message"]["content"]
+    r = httpx.post(
+        f"{OLLAMA_BASE}/api/chat",
+        json=payload,
+        timeout=120,
+    )
+    r.raise_for_status()
+    return r.json()["message"]["content"]
 
 
 def generate_with_history(
@@ -95,23 +97,33 @@ def generate_with_history(
 ) -> str:
     """Generate a response given a full conversation history."""
     config = get_config()
-    llm = get_llm()
 
     full_messages = []
     if system_prompt:
         full_messages.append({"role": "system", "content": system_prompt})
     full_messages.extend(messages)
 
-    response = llm.create_chat_completion(
-        messages=full_messages,
-        max_tokens=max_tokens or config.llm.max_tokens,
-        temperature=temperature or config.llm.temperature,
-        top_p=config.llm.top_p,
-        repeat_penalty=config.llm.repeat_penalty,
-        stop=stop,
-    )
+    payload = {
+        "model": config.llm.model_name,
+        "messages": full_messages,
+        "stream": False,
+        "options": {
+            "temperature": temperature or config.llm.temperature,
+            "num_predict": max_tokens or config.llm.max_tokens,
+            "top_p": config.llm.top_p,
+            "repeat_penalty": config.llm.repeat_penalty,
+        },
+    }
+    if stop:
+        payload["options"]["stop"] = stop
 
-    return response["choices"][0]["message"]["content"]
+    r = httpx.post(
+        f"{OLLAMA_BASE}/api/chat",
+        json=payload,
+        timeout=120,
+    )
+    r.raise_for_status()
+    return r.json()["message"]["content"]
 
 
 def stream(
@@ -123,28 +135,38 @@ def stream(
 ) -> Generator[str, None, None]:
     """Stream response tokens one at a time."""
     config = get_config()
-    llm = get_llm()
 
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": prompt})
 
-    response = llm.create_chat_completion(
-        messages=messages,
-        max_tokens=max_tokens or config.llm.max_tokens,
-        temperature=temperature or config.llm.temperature,
-        top_p=config.llm.top_p,
-        repeat_penalty=config.llm.repeat_penalty,
-        stop=stop,
-        stream=True,
-    )
+    payload = {
+        "model": config.llm.model_name,
+        "messages": messages,
+        "stream": True,
+        "options": {
+            "temperature": temperature or config.llm.temperature,
+            "num_predict": max_tokens or config.llm.max_tokens,
+            "top_p": config.llm.top_p,
+            "repeat_penalty": config.llm.repeat_penalty,
+        },
+    }
+    if stop:
+        payload["options"]["stop"] = stop
 
-    for chunk in response:
-        delta = chunk["choices"][0].get("delta", {})
-        content = delta.get("content", "")
-        if content:
-            yield content
+    with httpx.stream(
+        "POST",
+        f"{OLLAMA_BASE}/api/chat",
+        json=payload,
+        timeout=120,
+    ) as r:
+        for line in r.iter_lines():
+            if line:
+                data = json.loads(line)
+                content = data.get("message", {}).get("content", "")
+                if content:
+                    yield content
 
 
 def stream_with_history(
@@ -156,25 +178,35 @@ def stream_with_history(
 ) -> Generator[str, None, None]:
     """Stream response tokens given a full conversation history."""
     config = get_config()
-    llm = get_llm()
 
     full_messages = []
     if system_prompt:
         full_messages.append({"role": "system", "content": system_prompt})
     full_messages.extend(messages)
 
-    response = llm.create_chat_completion(
-        messages=full_messages,
-        max_tokens=max_tokens or config.llm.max_tokens,
-        temperature=temperature or config.llm.temperature,
-        top_p=config.llm.top_p,
-        repeat_penalty=config.llm.repeat_penalty,
-        stop=stop,
-        stream=True,
-    )
+    payload = {
+        "model": config.llm.model_name,
+        "messages": full_messages,
+        "stream": True,
+        "options": {
+            "temperature": temperature or config.llm.temperature,
+            "num_predict": max_tokens or config.llm.max_tokens,
+            "top_p": config.llm.top_p,
+            "repeat_penalty": config.llm.repeat_penalty,
+        },
+    }
+    if stop:
+        payload["options"]["stop"] = stop
 
-    for chunk in response:
-        delta = chunk["choices"][0].get("delta", {})
-        content = delta.get("content", "")
-        if content:
-            yield content
+    with httpx.stream(
+        "POST",
+        f"{OLLAMA_BASE}/api/chat",
+        json=payload,
+        timeout=120,
+    ) as r:
+        for line in r.iter_lines():
+            if line:
+                data = json.loads(line)
+                content = data.get("message", {}).get("content", "")
+                if content:
+                    yield content

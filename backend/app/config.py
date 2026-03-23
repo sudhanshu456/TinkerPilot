@@ -1,7 +1,7 @@
 """
 TinkerPilot configuration.
 All paths default to ~/.tinkerpilot/ for user data.
-Models are stored in the project's models/ directory.
+Models are managed by Ollama (no manual GGUF downloads needed).
 """
 
 import os
@@ -15,16 +15,12 @@ import yaml
 # Base directories
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent  # TinkerPilot/
 USER_DATA_DIR = Path.home() / ".tinkerpilot"
-MODELS_DIR = PROJECT_ROOT / "models"
 DATA_DIR = USER_DATA_DIR / "data"
 
 
 @dataclass
 class LLMConfig:
-    model_path: str = ""
-    n_ctx: int = 4096
-    n_gpu_layers: int = -1  # -1 = offload all to Metal GPU
-    n_threads: int = 4
+    model_name: str = "qwen2.5:3b"
     temperature: float = 0.7
     max_tokens: int = 2048
     top_p: float = 0.9
@@ -33,9 +29,7 @@ class LLMConfig:
 
 @dataclass
 class EmbeddingConfig:
-    model_path: str = ""
-    n_ctx: int = 2048
-    n_gpu_layers: int = -1
+    model_name: str = "nomic-embed-text"
     embedding_dim: int = 768
 
 
@@ -72,15 +66,10 @@ class AppConfig:
     whisper: WhisperConfig = field(default_factory=WhisperConfig)
     rag: RAGConfig = field(default_factory=RAGConfig)
     integrations: IntegrationConfig = field(default_factory=IntegrationConfig)
+    ollama_base_url: str = "http://localhost:11434"
     host: str = "127.0.0.1"
     port: int = 8000
     debug: bool = False
-
-    def __post_init__(self):
-        if not self.llm.model_path:
-            self.llm.model_path = str(MODELS_DIR / "qwen2.5-3b-instruct-q4_k_m.gguf")
-        if not self.embedding.model_path:
-            self.embedding.model_path = str(MODELS_DIR / "nomic-embed-text-v1.5-Q4_K_M.gguf")
 
 
 def load_config(config_path: Optional[str] = None) -> AppConfig:
@@ -107,7 +96,7 @@ def load_config(config_path: Optional[str] = None) -> AppConfig:
                     if hasattr(section_obj, k):
                         setattr(section_obj, k, v)
 
-        for k in ("host", "port", "debug"):
+        for k in ("host", "port", "debug", "ollama_base_url"):
             if k in data:
                 setattr(config, k, data[k])
 
@@ -119,7 +108,6 @@ def ensure_directories():
     for d in [
         USER_DATA_DIR,
         DATA_DIR,
-        MODELS_DIR,
         DATA_DIR / "chroma",
         DATA_DIR / "audio",
         DATA_DIR / "uploads",
