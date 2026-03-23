@@ -64,6 +64,12 @@ async def get_daily_digest():
         from app.integrations.apple_notes import get_notes
 
         notes = get_notes(limit=5)
+        # Clean up the output so the LLM doesn't see or print internal Apple coredata IDs
+        for n in notes:
+            if "id" in n:
+                del n["id"]
+            if "folder" in n:
+                del n["folder"]
     except Exception as e:
         logger.debug(f"Apple Notes not available: {e}")
     sections["notes"] = notes
