@@ -52,7 +52,7 @@ All inference runs locally via Apple Metal GPU acceleration. See [docs/MODEL_SEL
 ## Requirements
 
 - **macOS** with Apple Silicon (M1/M2/M3/M4) — 8GB RAM minimum
-- **Python 3.10+**
+- **Python 3.10–3.13** (3.14+ is not yet supported by ML packages)
 - **Node.js 18+**
 - ~3 GB disk space for models
 
@@ -97,7 +97,9 @@ npm run dev
 
 ```bash
 cd backend
-python3 -m venv .venv
+
+# Use Python 3.12 (3.14 is too new for ML packages)
+python3.12 -m venv .venv
 source .venv/bin/activate
 
 # Install llama-cpp-python with Metal
@@ -179,7 +181,7 @@ python -m cli.main serve --port 8000
 |--------|----------|-------------|
 | GET | `/api/health` | Health check |
 | POST | `/api/chat` | Send a chat message (with/without RAG) |
-| WS | `/ws/chat` | WebSocket streaming chat |
+| WS | `/api/ws/chat` | WebSocket streaming chat |
 | GET | `/api/chat/history` | Get chat history |
 | POST | `/api/documents/upload` | Upload and ingest a file |
 | POST | `/api/documents/ingest` | Ingest a local path |
