@@ -44,7 +44,7 @@ export default function ChatPage() {
   const connectWs = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
-    const ws = new WebSocket('ws://127.0.0.1:8000/ws/chat');
+    const ws = new WebSocket('ws://127.0.0.1:8000/api/ws/chat');
 
     ws.onopen = () => setWsReady(true);
     ws.onclose = () => {
