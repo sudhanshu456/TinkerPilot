@@ -21,7 +21,18 @@ router = APIRouter(tags=["digest"])
 @router.get("/digest")
 async def get_daily_digest():
     """Generate a daily digest with tasks, meetings, and notes."""
+    import datetime
     from app.core.llm import generate
+
+    now = datetime.datetime.now()
+    hour = now.hour
+
+    if hour < 12:
+        briefing_type = "morning briefing"
+    elif hour < 17:
+        briefing_type = "afternoon update"
+    else:
+        briefing_type = "evening wrap-up"
 
     sections = {}
 
@@ -77,7 +88,8 @@ async def get_daily_digest():
     # 4. Generate digest with LLM
     context = json.dumps(sections, indent=2, default=str)
 
-    prompt = f"""Based on the following data, create a concise daily briefing for a developer.
+    prompt = f"""Based on the following data, create a concise {briefing_type} for a developer.
+It is currently {now.strftime("%I:%M %p on %A, %B %d, %Y")}.
 Include: high-priority tasks to focus on, follow-ups from recent meetings, and any relevant notes.
 Keep it practical and actionable, under 300 words.
 
@@ -87,7 +99,7 @@ Data:
     digest_text = generate(
         prompt,
         system_prompt=(
-            "You are TinkerPilot, generating a morning briefing. "
+            f"You are TinkerPilot, generating a {briefing_type}. "
             "Be concise, practical, and prioritize actionable items. "
             "Use markdown formatting with headers and bullet points."
         ),
