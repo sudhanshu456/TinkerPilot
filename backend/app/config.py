@@ -29,8 +29,8 @@ class LLMConfig:
 
 @dataclass
 class EmbeddingConfig:
-    model_name: str = "nomic-embed-text"
-    embedding_dim: int = 768
+    model_name: str = "qwen3-embedding:0.6b"
+    embedding_dim: int = 1024
 
 
 @dataclass

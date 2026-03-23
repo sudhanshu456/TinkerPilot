@@ -93,7 +93,7 @@ brew install ollama
 
 # 2. Pull models
 ollama pull qwen2.5:3b
-ollama pull nomic-embed-text
+ollama pull qwen3-embedding:0.6b
 
 # 3. Python backend
 cd backend
@@ -181,7 +181,7 @@ python -m cli.main serve
 | Model | Purpose | Size | Engine |
 |-------|---------|------|--------|
 | Qwen2.5-3B-Instruct | Chat, summarization, code analysis | ~2.0 GB | Ollama (Metal GPU) |
-| nomic-embed-text | Text embeddings for RAG | ~274 MB | Ollama (Metal GPU) |
+| Qwen3-Embedding 0.6B | Text embeddings for RAG | ~639 MB | Ollama (Metal GPU) |
 | Whisper small (int8) | Speech-to-text | ~500 MB | faster-whisper |
 
 See [docs/MODEL_SELECTION.md](docs/MODEL_SELECTION.md) for detailed rationale and alternatives analysis.
@@ -196,7 +196,7 @@ llm:
   temperature: 0.7
 
 embedding:
-  model_name: "nomic-embed-text"
+  model_name: "qwen3-embedding:0.6b"  # or nomic-embed-text, mxbai-embed-large
 
 whisper:
   model_size: small  # tiny, base, small, medium, large

@@ -107,11 +107,11 @@ else
 fi
 
 # Embeddings
-if ollama list 2>/dev/null | grep -q "nomic-embed-text"; then
-    info "Embedding model already downloaded: nomic-embed-text"
+if ollama list 2>/dev/null | grep -q "qwen3-embedding:0.6b"; then
+    info "Embedding model already downloaded: qwen3-embedding:0.6b"
 else
-    info "Downloading embedding model: nomic-embed-text (~274MB)..."
-    ollama pull nomic-embed-text
+    info "Downloading embedding model: qwen3-embedding:0.6b (~639MB)..."
+    ollama pull qwen3-embedding:0.6b
     info "Embedding model ready"
 fi
 

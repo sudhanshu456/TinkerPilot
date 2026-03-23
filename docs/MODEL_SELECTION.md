@@ -7,11 +7,11 @@ TinkerPilot uses three local AI models, all running on-device via Apple Silicon 
 | Model | Purpose | Size (on disk) | RAM Usage | Inference Engine |
 |-------|---------|----------------|-----------|------------------|
 | **Qwen2.5-3B-Instruct** | Chat, summarization, code explanation, task extraction | ~2.0 GB | ~2.2 GB | Ollama (Metal GPU) |
-| **nomic-embed-text** | Text embeddings for RAG semantic search | ~274 MB | ~300 MB | Ollama (Metal GPU) |
+| **Qwen3-Embedding 0.6B** | Text embeddings for RAG semantic search | ~639 MB | ~500 MB | Ollama (Metal GPU) |
 | **Whisper small** (int8, CTranslate2) | Speech-to-text transcription | ~500 MB | ~500 MB | faster-whisper |
-| **Total** | | **~2.8 GB** | **~3.0 GB** | |
+| **Total** | | **~3.1 GB** | **~3.2 GB** | |
 
-With macOS using ~2.5 GB baseline + app overhead (~500 MB for Python, ChromaDB, SQLite, FastAPI), the total footprint is approximately **6.0 GB**, leaving ~2.0 GB headroom on an 8 GB machine.
+With macOS using ~2.5 GB baseline + app overhead (~500 MB for Python, ChromaDB, SQLite, FastAPI), the total footprint is approximately **6.2 GB**, leaving ~2.0 GB headroom on an 8 GB machine.
 
 ---
 
@@ -52,27 +52,36 @@ Qwen2.5-3B-Instruct was chosen over all alternatives at the 1-4B parameter range
 
 ---
 
-## 2. Embeddings: nomic-embed-text
+## 2. Embeddings: Qwen3-Embedding 0.6B
 
 ### Why This Model
 
-nomic-embed-text was chosen for the embedding/retrieval layer because:
+Qwen3-Embedding 0.6B was chosen for the embedding/retrieval layer because:
 
-1. **Available in Ollama**: Zero-config install with `ollama pull nomic-embed-text`. No compilation, no PyTorch dependency.
+1. **State-of-the-art quality**: The Qwen3 embedding family is **#1 on the MTEB multilingual leaderboard** (June 2025). Even the 0.6B variant significantly outperforms older models like nomic-embed-text on retrieval benchmarks.
 
-2. **Quality**: Ranks in the top tier on the MTEB leaderboard for retrieval tasks. 768-dimensional embeddings provide a good balance between quality and storage efficiency.
+2. **32K context window**: vs 8K for nomic-embed-text. Allows embedding long code files and meeting transcripts without truncation.
 
-3. **8192 Token Input**: Can embed long document chunks without truncation.
+3. **Code retrieval support**: Explicitly trained on code retrieval tasks — directly relevant to our "chat with codebase" RAG feature.
 
-4. **Small Footprint**: ~274 MB on disk, ~300 MB in RAM via Ollama.
+4. **Flexible dimensions**: Supports output dimensions from 32 to 4096. We use 1024 for a good quality/storage balance.
+
+5. **Same model family as our LLM**: Qwen3 embeddings pair naturally with Qwen2.5 LLM.
+
+6. **100+ languages**: Strong multilingual and cross-lingual capabilities.
+
+7. **Available in Ollama**: `ollama pull qwen3-embedding:0.6b` — zero-config, no compilation.
 
 ### Alternatives Considered
 
-| Model | Why Not |
-|-------|---------|
-| **all-MiniLM-L6-v2** | Requires sentence-transformers + PyTorch (~2 GB RAM overhead). |
-| **BGE-small-en** | Also requires PyTorch. Similar quality but heavier dependency chain. |
-| **mxbai-embed-large** | Higher quality but 335M params = more RAM. nomic is sufficient for our use case. |
+| Model | Size | Why Not |
+|-------|------|---------|
+| **nomic-embed-text** | 274 MB | 2 years old, 8K context only, lower MTEB scores. Previously used in TinkerPilot v1. |
+| **all-MiniLM-L6-v2** | 67 MB | 512 token context, low quality, tiny dimensions (384). |
+| **mxbai-embed-large** | 670 MB | Good quality but 512 token context window — too small for code files. |
+| **bge-m3** | 1.2 GB | High quality and multilingual but 1.2 GB is heavy for 8GB machines. |
+| **qwen3-embedding:8b** | 4.7 GB | #1 MTEB overall but 4.7 GB won't fit alongside Qwen2.5-3B LLM on 8GB. Best for 16GB+ machines. |
+| **snowflake-arctic-embed** | 219 MB | 512 token context, English-only. |
 
 ---
 
@@ -137,11 +146,11 @@ This was chosen over llama-cpp-python (direct C++ bindings) because:
 │ Available for models:         ~5,242 MB     │
 ├─────────────────────────────────────────────┤
 │ Qwen2.5-3B (Ollama, Metal)   ~2,200 MB     │
-│ nomic-embed-text (Ollama)      ~300 MB     │
+│ Qwen3-Embedding 0.6B (Ollama)  ~500 MB     │
 │ Whisper small (int8) *lazy*    ~500 MB     │
 ├─────────────────────────────────────────────┤
-│ Total model usage:            ~3,000 MB     │
-│ Remaining headroom:           ~2,242 MB     │
+│ Total model usage:            ~3,200 MB     │
+│ Remaining headroom:           ~2,042 MB     │
 └─────────────────────────────────────────────┘
 ```
 
@@ -157,7 +166,7 @@ llm:
   temperature: 0.7
 
 embedding:
-  model_name: "nomic-embed-text"  # or mxbai-embed-large, etc.
+  model_name: "qwen3-embedding:0.6b"  # or nomic-embed-text, mxbai-embed-large
 
 whisper:
   model_size: small  # tiny, base, small, medium, large

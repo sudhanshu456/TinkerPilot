@@ -15,9 +15,9 @@ MODELS = [
         "size": "~2.0 GB",
     },
     {
-        "name": "nomic-embed-text",
-        "description": "Nomic Embed Text — text embeddings for RAG semantic search",
-        "size": "~274 MB",
+        "name": "qwen3-embedding:0.6b",
+        "description": "Qwen3 Embedding 0.6B — text embeddings for RAG, code retrieval, 32K context",
+        "size": "~639 MB",
     },
 ]
 
