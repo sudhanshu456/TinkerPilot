@@ -2,7 +2,7 @@
 
 **Local AI assistant for developers. Privacy-first, offline, runs entirely on your machine.**
 
-TinkerPilot combines chat-with-docs, meeting transcription, task management, calendar sync, and developer utilities into a single local-first application powered by on-device AI inference. No cloud APIs. No data leaves your machine.
+TinkerPilot combines chat-with-docs, meeting transcription, task management, and developer utilities into a single local-first application powered by on-device AI inference. No cloud APIs. No data leaves your machine.
 
 ## Features
 
@@ -11,9 +11,8 @@ TinkerPilot combines chat-with-docs, meeting transcription, task management, cal
 | **Chat with Documents** | Ingest PDFs, code, markdown, CSV, JSON. Ask questions with RAG-powered semantic search and source citations. |
 | **Meeting Transcription** | Upload audio files, get transcripts + structured summaries with action items (auto-created as tasks). |
 | **Speech-to-Text** | Record and transcribe speech from the terminal. |
-| **Daily Digest** | Morning briefing combining calendar events, pending tasks, and recent meeting summaries. |
+| **Daily Digest** | Morning briefing combining pending tasks, recent meeting summaries, and notes. |
 | **Task Manager** | Create, track, and complete tasks. Auto-extracted from meeting summaries. Kanban-style web UI. |
-| **Apple Calendar Sync** | Reads today's events from macOS Calendar app. |
 | **Apple Notes Search** | Search and retrieve notes from the macOS Notes app. |
 | **Obsidian Integration** | Index and search your Obsidian vault with semantic search. |
 | **Code Explainer** | Drop in any script or code file, get a clear explanation. |
@@ -217,7 +216,6 @@ rag:
 
 integrations:
   obsidian_vault_path: ~/Documents/ObsidianVault
-  enable_apple_calendar: true
   enable_apple_notes: true
 ```
 
@@ -226,7 +224,7 @@ integrations:
 - All AI inference runs locally on your hardware (via Ollama)
 - No data is sent to any cloud service
 - All data stored in `~/.tinkerpilot/` on your local filesystem
-- Apple Calendar/Notes access requires explicit macOS permission grants
+- Apple Notes access requires explicit macOS permission grants
 - No telemetry, no analytics, no tracking
 
 ## License

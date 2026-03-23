@@ -1,6 +1,6 @@
 """
 Daily Digest API endpoint.
-Aggregates calendar events, pending tasks, recent meetings, and notes
+Aggregates pending tasks, recent meetings, and notes
 into a single AI-generated morning briefing.
 """
 
@@ -20,7 +20,7 @@ router = APIRouter(tags=["digest"])
 
 @router.get("/digest")
 async def get_daily_digest():
-    """Generate a daily digest with calendar, tasks, meetings, and notes."""
+    """Generate a daily digest with tasks, meetings, and notes."""
     from app.core.llm import generate
 
     sections = {}
@@ -58,21 +58,21 @@ async def get_daily_digest():
                 }
             )
 
-    # 3. Calendar events (try Apple Calendar)
-    calendar_events = []
+    # 3. Recent Apple Notes
+    notes = []
     try:
-        from app.integrations.apple_calendar import get_today_events
+        from app.integrations.apple_notes import get_recent_notes
 
-        calendar_events = get_today_events()
+        notes = get_recent_notes(limit=5)
     except Exception as e:
-        logger.debug(f"Calendar not available: {e}")
-    sections["calendar"] = calendar_events
+        logger.debug(f"Apple Notes not available: {e}")
+    sections["notes"] = notes
 
     # 4. Generate digest with LLM
     context = json.dumps(sections, indent=2, default=str)
 
     prompt = f"""Based on the following data, create a concise daily briefing for a developer.
-Include: what's on the calendar today, high-priority tasks to focus on, and any follow-ups from recent meetings.
+Include: high-priority tasks to focus on, follow-ups from recent meetings, and any relevant notes.
 Keep it practical and actionable, under 300 words.
 
 Data:

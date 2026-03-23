@@ -432,7 +432,7 @@ def git_digest_cmd(
 
 @app.command()
 def digest():
-    """Show your daily briefing (calendar, tasks, meetings)."""
+    """Show your daily briefing (tasks, meetings, notes)."""
     from app.db.sqlite import get_session, init_db
     from app.db.models import Task, Meeting
     from app.config import ensure_directories
@@ -471,15 +471,16 @@ def digest():
             if summary:
                 console.print(f"    [dim]{summary}[/dim]")
 
-    # Calendar
+    # Notes
     try:
-        from app.integrations.apple_calendar import get_today_events
+        from app.integrations.apple_notes import get_recent_notes
 
-        events = get_today_events()
-        if events:
-            console.print("\n[bold]Today's Calendar:[/bold]")
-            for ev in events:
-                console.print(f"  - {ev['title']} ({ev['start']})")
+        notes = get_recent_notes(limit=3)
+        if notes:
+            console.print("\n[bold]Recent Notes:[/bold]")
+            for n in notes:
+                title = n.get("title", "Untitled")
+                console.print(f"  - {title}")
     except Exception:
         pass
 

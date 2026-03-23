@@ -25,8 +25,6 @@ dependencies = [
     # Document parsing
     "PyMuPDF>=1.24.0",
     "python-docx>=1.1.0",
-    # Apple integrations (macOS only)
-    "pyobjc-framework-EventKit>=10.0;sys_platform=='darwin'",
     # Audio
     "sounddevice>=0.5.0",
     "soundfile>=0.12.0",

@@ -67,7 +67,6 @@ class RAGConfig:
 class IntegrationConfig:
     obsidian_vault_path: Optional[str] = None
     watch_directories: list = field(default_factory=list)
-    enable_apple_calendar: bool = True
     enable_apple_notes: bool = True
 
 

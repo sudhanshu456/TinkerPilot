@@ -108,8 +108,8 @@ export default function DashboardPage() {
           color="var(--accent)"
         />
         <StatCard
-          title="Calendar Events"
-          value={raw?.calendar?.length ?? 0}
+          title="Notes"
+          value={raw?.notes?.length ?? 0}
           color="var(--success)"
         />
       </div>
