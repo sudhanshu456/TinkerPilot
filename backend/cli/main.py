@@ -1,0 +1,540 @@
+"""
+TinkerPilot CLI - `tp` command.
+Provides quick access to all TinkerPilot features from the terminal.
+"""
+
+import json
+import sys
+from pathlib import Path
+from typing import Optional
+
+import typer
+from rich.console import Console
+from rich.markdown import Markdown
+from rich.panel import Panel
+from rich.table import Table
+
+# Add backend to path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+app = typer.Typer(
+    name="tp",
+    help="TinkerPilot - Local AI assistant for developers",
+    no_args_is_help=True,
+)
+console = Console()
+
+
+# ─── Chat / Ask ───────────────────────────────────────────────
+
+
+@app.command()
+def ask(
+    question: str = typer.Argument(..., help="Question to ask"),
+    no_rag: bool = typer.Option(
+        False, "--no-rag", help="Skip document search, use general knowledge"
+    ),
+    top_k: int = typer.Option(5, "--top-k", "-k", help="Number of context chunks to retrieve"),
+):
+    """Ask a question (uses RAG over indexed documents by default)."""
+    if no_rag:
+        from app.core.llm import generate
+
+        console.print("[dim]Generating answer (no RAG)...[/dim]")
+        answer = generate(question)
+        console.print()
+        console.print(Markdown(answer))
+    else:
+        from app.core.rag import query_rag
+
+        console.print("[dim]Searching documents and generating answer...[/dim]")
+        result = query_rag(question, top_k=top_k)
+        console.print()
+        console.print(Markdown(result["answer"]))
+
+        if result["sources"]:
+            console.print()
+            console.print("[bold]Sources:[/bold]")
+            for src in result["sources"]:
+                loc = src["filename"]
+                if src.get("line_start"):
+                    loc += f":{src['line_start']}"
+                console.print(f"  [{src['index']}] {loc} (relevance: {src['relevance']})")
+
+
+# ─── Ingest ───────────────────────────────────────────────────
+
+
+@app.command()
+def ingest(
+    path: str = typer.Argument(..., help="File or directory path to ingest"),
+    recursive: bool = typer.Option(True, "--recursive/--no-recursive", "-r/-R"),
+):
+    """Ingest files or directories into the knowledge base."""
+    from app.core.rag import ingest_file, ingest_directory
+
+    target = Path(path).expanduser().resolve()
+    if not target.exists():
+        console.print(f"[red]Path not found: {path}[/red]")
+        raise typer.Exit(1)
+
+    if target.is_file():
+        console.print(f"Ingesting file: {target.name}")
+        result = ingest_file(str(target))
+        console.print(f"  Chunks: {result['chunk_count']}")
+        console.print("[green]Done.[/green]")
+    else:
+        console.print(f"Ingesting directory: {target}")
+        results = ingest_directory(str(target), recursive=recursive)
+        total_chunks = sum(r.get("chunk_count", 0) for r in results)
+        console.print(f"  Files: {len(results)}, Total chunks: {total_chunks}")
+        errors = [r for r in results if "error" in r]
+        if errors:
+            console.print(f"  [yellow]Errors: {len(errors)}[/yellow]")
+        console.print("[green]Done.[/green]")
+
+
+# ─── Search ───────────────────────────────────────────────────
+
+
+@app.command()
+def search(
+    query: str = typer.Argument(..., help="Search query"),
+    limit: int = typer.Option(10, "--limit", "-n"),
+):
+    """Search across all indexed documents, tasks, and meetings."""
+    from app.db.vector import query_collection
+
+    console.print(f"[dim]Searching for: {query}[/dim]")
+    results = query_collection(query, n_results=limit)
+
+    docs = results.get("documents", [[]])[0]
+    metas = results.get("metadatas", [[]])[0]
+    dists = results.get("distances", [[]])[0]
+
+    if not docs:
+        console.print("[yellow]No results found.[/yellow]")
+        return
+
+    for i, (doc, meta, dist) in enumerate(zip(docs, metas, dists)):
+        relevance = round(1 - dist, 3) if dist else 0
+        filename = meta.get("filename", "unknown")
+        line = meta.get("line_start", "")
+        loc = f"{filename}:{line}" if line else filename
+
+        console.print(
+            Panel(
+                doc[:300] + ("..." if len(doc) > 300 else ""),
+                title=f"[bold]{loc}[/bold] (relevance: {relevance})",
+                border_style="blue",
+            )
+        )
+
+
+# ─── Transcribe ───────────────────────────────────────────────
+
+
+@app.command()
+def transcribe(
+    audio_file: str = typer.Argument(..., help="Path to audio file"),
+    language: Optional[str] = typer.Option(None, "--language", "-l"),
+    summarize: bool = typer.Option(True, "--summarize/--no-summarize", "-s/-S"),
+):
+    """Transcribe an audio file and optionally summarize it."""
+    from app.core.whisper_stt import transcribe_file
+
+    path = Path(audio_file).expanduser().resolve()
+    if not path.exists():
+        console.print(f"[red]File not found: {audio_file}[/red]")
+        raise typer.Exit(1)
+
+    console.print(f"[dim]Transcribing: {path.name}...[/dim]")
+    result = transcribe_file(str(path), language=language)
+
+    console.print()
+    console.print(Panel(result["text"], title="Transcript", border_style="green"))
+    console.print(f"Language: {result['language']} (confidence: {result['language_probability']})")
+
+    if summarize and result["text"].strip():
+        console.print()
+        console.print("[dim]Generating summary...[/dim]")
+
+        from app.core.llm import generate
+
+        prompt = f"""Summarize this meeting transcript. Include key decisions and action items.
+
+Transcript:
+{result["text"][:6000]}"""
+
+        summary = generate(prompt, temperature=0.3)
+        console.print()
+        console.print(Panel(Markdown(summary), title="Summary", border_style="cyan"))
+
+
+# ─── Tasks ────────────────────────────────────────────────────
+
+
+@app.command(name="tasks")
+def list_tasks(
+    status: Optional[str] = typer.Option(
+        None, "--status", "-s", help="Filter: todo, in_progress, done"
+    ),
+):
+    """List tasks."""
+    from app.db.sqlite import get_session
+    from app.db.models import Task
+
+    with get_session() as session:
+        query = session.query(Task)
+        if status:
+            query = query.filter(Task.status == status)
+        tasks = query.order_by(Task.created_at.desc()).all()
+
+    if not tasks:
+        console.print("[yellow]No tasks found.[/yellow]")
+        return
+
+    table = Table(title="Tasks")
+    table.add_column("ID", style="dim")
+    table.add_column("Title")
+    table.add_column("Status")
+    table.add_column("Priority")
+    table.add_column("Due")
+
+    status_colors = {"todo": "white", "in_progress": "yellow", "done": "green"}
+    priority_colors = {"high": "red", "medium": "yellow", "low": "dim"}
+
+    for t in tasks:
+        sc = status_colors.get(t.status, "white")
+        pc = priority_colors.get(t.priority, "white")
+        table.add_row(
+            str(t.id),
+            t.title,
+            f"[{sc}]{t.status}[/{sc}]",
+            f"[{pc}]{t.priority}[/{pc}]",
+            t.due_date or "-",
+        )
+
+    console.print(table)
+
+
+@app.command(name="add-task")
+def add_task(
+    title: str = typer.Argument(..., help="Task title"),
+    priority: str = typer.Option("medium", "--priority", "-p", help="low, medium, high"),
+    due: Optional[str] = typer.Option(None, "--due", "-d", help="Due date (YYYY-MM-DD)"),
+):
+    """Add a new task."""
+    from app.db.sqlite import get_session
+    from app.db.models import Task
+
+    with get_session() as session:
+        task = Task(title=title, priority=priority, due_date=due)
+        session.add(task)
+        session.commit()
+        session.refresh(task)
+        console.print(f"[green]Task #{task.id} created: {title}[/green]")
+
+
+@app.command()
+def done(
+    task_id: int = typer.Argument(..., help="Task ID to mark as done"),
+):
+    """Mark a task as done."""
+    import datetime
+    from app.db.sqlite import get_session
+    from app.db.models import Task
+
+    with get_session() as session:
+        task = session.get(Task, task_id)
+        if not task:
+            console.print(f"[red]Task #{task_id} not found.[/red]")
+            raise typer.Exit(1)
+        task.status = "done"
+        task.updated_at = datetime.datetime.now().isoformat()
+        session.add(task)
+        session.commit()
+        console.print(f"[green]Task #{task_id} marked as done: {task.title}[/green]")
+
+
+# ─── Explain ──────────────────────────────────────────────────
+
+
+@app.command()
+def explain(
+    filepath: str = typer.Argument(..., help="File to explain"),
+    question: Optional[str] = typer.Option(
+        None, "--question", "-q", help="Specific question about the file"
+    ),
+):
+    """Explain a code file or script."""
+    from app.core.llm import generate
+
+    path = Path(filepath).expanduser().resolve()
+    if not path.exists():
+        console.print(f"[red]File not found: {filepath}[/red]")
+        raise typer.Exit(1)
+
+    content = path.read_text(encoding="utf-8", errors="replace")
+
+    console.print(f"[dim]Analyzing: {path.name}...[/dim]")
+
+    q_part = f"\n\nSpecific question: {question}" if question else ""
+    prompt = f"""Filename: {path.name}
+```
+{content[:6000]}
+```
+{q_part}
+
+Explain what this code does. Cover purpose, key functions, important logic, and potential issues."""
+
+    explanation = generate(
+        prompt,
+        system_prompt="You are a senior developer explaining code. Be clear and concise.",
+        temperature=0.3,
+    )
+    console.print()
+    console.print(Markdown(explanation))
+
+
+# ─── Convert ─────────────────────────────────────────────────
+
+
+@app.command()
+def convert(
+    filepath: str = typer.Argument(..., help="File to convert"),
+    to: str = typer.Option(..., "--to", "-t", help="Target format: json, csv, pdf"),
+    output: Optional[str] = typer.Option(None, "--output", "-o", help="Output file path"),
+):
+    """Convert files between formats (csv->json, json->csv, image->pdf)."""
+    path = Path(filepath).expanduser().resolve()
+    if not path.exists():
+        console.print(f"[red]File not found: {filepath}[/red]")
+        raise typer.Exit(1)
+
+    src_ext = path.suffix.lower()
+    to = to.lower().lstrip(".")
+
+    if src_ext == ".csv" and to == "json":
+        import csv as csv_mod
+
+        with open(path, "r", encoding="utf-8") as f:
+            reader = csv_mod.DictReader(f)
+            data = list(reader)
+        out_path = output or str(path.with_suffix(".json"))
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        console.print(f"[green]Converted {path.name} -> {out_path} ({len(data)} rows)[/green]")
+
+    elif src_ext == ".json" and to == "csv":
+        import csv as csv_mod
+
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            data = [data]
+        if not data:
+            console.print("[red]Empty JSON data.[/red]")
+            raise typer.Exit(1)
+        out_path = output or str(path.with_suffix(".csv"))
+        with open(out_path, "w", encoding="utf-8", newline="") as f:
+            writer = csv_mod.DictWriter(f, fieldnames=data[0].keys())
+            writer.writeheader()
+            writer.writerows(data)
+        console.print(f"[green]Converted {path.name} -> {out_path} ({len(data)} rows)[/green]")
+
+    elif src_ext in (".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".webp") and to == "pdf":
+        try:
+            import img2pdf
+        except ImportError:
+            console.print("[red]img2pdf not installed: pip install img2pdf[/red]")
+            raise typer.Exit(1)
+        out_path = output or str(path.with_suffix(".pdf"))
+        with open(path, "rb") as img_f, open(out_path, "wb") as pdf_f:
+            pdf_f.write(img2pdf.convert(img_f.read()))
+        console.print(f"[green]Converted {path.name} -> {out_path}[/green]")
+
+    else:
+        console.print(f"[red]Unsupported conversion: {src_ext} -> .{to}[/red]")
+        console.print("Supported: csv->json, json->csv, image->pdf")
+        raise typer.Exit(1)
+
+
+# ─── Command Helper ──────────────────────────────────────────
+
+
+@app.command()
+def cmd(
+    description: str = typer.Argument(
+        ..., help="Natural language description of what you want to do"
+    ),
+):
+    """Convert natural language to a shell command."""
+    from app.core.llm import generate
+
+    prompt = f"""Convert this to a shell command (macOS/zsh):
+"{description}"
+Output ONLY the command, nothing else. If dangerous, prefix with "# WARNING: "."""
+
+    command = generate(
+        prompt,
+        system_prompt="You convert natural language to shell commands. Output ONLY the command.",
+        temperature=0.1,
+        max_tokens=200,
+    )
+    console.print()
+    console.print(f"[bold cyan]$ {command.strip()}[/bold cyan]")
+    console.print("[dim]Review before running. Not auto-executed.[/dim]")
+
+
+# ─── Git Digest ───────────────────────────────────────────────
+
+
+@app.command(name="git-digest")
+def git_digest_cmd(
+    repo_path: str = typer.Argument(".", help="Path to git repository"),
+    commits: int = typer.Option(20, "--commits", "-n", help="Number of recent commits"),
+):
+    """Summarize recent git activity in a repository."""
+    import subprocess
+    from app.core.llm import generate
+
+    repo = Path(repo_path).expanduser().resolve()
+    if not (repo / ".git").exists():
+        console.print(f"[red]Not a git repository: {repo}[/red]")
+        raise typer.Exit(1)
+
+    result = subprocess.run(
+        ["git", "log", f"--max-count={commits}", "--oneline", "--no-merges"],
+        cwd=str(repo),
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    git_log = result.stdout.strip()
+
+    if not git_log:
+        console.print("[yellow]No commits found.[/yellow]")
+        return
+
+    console.print("[dim]Summarizing git activity...[/dim]")
+    prompt = f"""Summarize this git activity. Group related commits and highlight important changes.
+
+{git_log}"""
+
+    digest = generate(prompt, temperature=0.3)
+    console.print()
+    console.print(Markdown(digest))
+
+
+# ─── Digest ───────────────────────────────────────────────────
+
+
+@app.command()
+def digest():
+    """Show your daily briefing (calendar, tasks, meetings)."""
+    from app.db.sqlite import get_session, init_db
+    from app.db.models import Task, Meeting
+    from app.config import ensure_directories
+
+    ensure_directories()
+    init_db()
+
+    # Gather data
+    with get_session() as session:
+        pending = session.query(Task).filter(Task.status.in_(["todo", "in_progress"])).all()
+        recent_meetings = session.query(Meeting).order_by(Meeting.date.desc()).limit(3).all()
+
+    console.print(Panel("[bold]Daily Digest[/bold]", border_style="cyan"))
+
+    # Tasks
+    if pending:
+        console.print("\n[bold]Pending Tasks:[/bold]")
+        for t in pending:
+            icon = {"high": "[red]![/red]", "medium": "[yellow]-[/yellow]", "low": "[dim].[/dim]"}
+            console.print(f"  {icon.get(t.priority, '-')} {t.title} [{t.status}]")
+    else:
+        console.print("\n[green]No pending tasks.[/green]")
+
+    # Recent meetings
+    if recent_meetings:
+        console.print("\n[bold]Recent Meetings:[/bold]")
+        for m in recent_meetings:
+            summary = ""
+            if m.summary:
+                try:
+                    s = json.loads(m.summary)
+                    summary = s.get("summary", "")[:100]
+                except json.JSONDecodeError:
+                    summary = m.summary[:100]
+            console.print(f"  - {m.title} ({m.date[:10]})")
+            if summary:
+                console.print(f"    [dim]{summary}[/dim]")
+
+    # Calendar
+    try:
+        from app.integrations.apple_calendar import get_today_events
+
+        events = get_today_events()
+        if events:
+            console.print("\n[bold]Today's Calendar:[/bold]")
+            for ev in events:
+                console.print(f"  - {ev['title']} ({ev['start']})")
+    except Exception:
+        pass
+
+    console.print()
+
+
+# ─── Listen (Speech-to-Text) ─────────────────────────────────
+
+
+@app.command()
+def listen(
+    duration: int = typer.Option(10, "--duration", "-d", help="Recording duration in seconds"),
+    language: Optional[str] = typer.Option(None, "--language", "-l"),
+):
+    """Record audio and transcribe (speech-to-text)."""
+    import sounddevice as sd
+    import soundfile as sf
+    import tempfile
+
+    sample_rate = 16000
+    console.print(f"[bold cyan]Recording for {duration} seconds... Speak now.[/bold cyan]")
+
+    audio = sd.rec(int(duration * sample_rate), samplerate=sample_rate, channels=1, dtype="float32")
+    sd.wait()
+    console.print("[dim]Recording complete. Transcribing...[/dim]")
+
+    # Save to temp file
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+        sf.write(tmp.name, audio, sample_rate)
+        tmp_path = tmp.name
+
+    from app.core.whisper_stt import transcribe_file
+
+    result = transcribe_file(tmp_path, language=language)
+
+    Path(tmp_path).unlink(missing_ok=True)
+
+    console.print()
+    console.print(result["text"])
+
+
+# ─── Server ──────────────────────────────────────────────────
+
+
+@app.command()
+def serve(
+    host: str = typer.Option("127.0.0.1", "--host", "-h"),
+    port: int = typer.Option(8000, "--port", "-p"),
+):
+    """Start the TinkerPilot API server."""
+    import uvicorn
+
+    console.print(f"[bold cyan]Starting TinkerPilot server at http://{host}:{port}[/bold cyan]")
+    uvicorn.run("app.main:app", host=host, port=port, reload=False)
+
+
+if __name__ == "__main__":
+    app()
