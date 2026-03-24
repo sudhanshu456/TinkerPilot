@@ -21,8 +21,20 @@ echo "  Local AI Assistant for Developers"
 echo "============================================"
 echo ""
 
-if [ "$(uname)" != "Darwin" ]; then
-    error "TinkerPilot currently only supports macOS (Apple Silicon recommended)."
+if [ "$(uname)" != "Darwin" ] && [ "$(uname)" != "Linux" ]; then
+    error "TinkerPilot currently supports macOS and Linux."
+fi
+
+# Detect package manager
+PKG_MGR=""
+if [ "$(uname)" == "Darwin" ]; then
+    PKG_MGR="brew"
+elif command -v apt-get &> /dev/null; then
+    PKG_MGR="apt"
+elif command -v yum &> /dev/null; then
+    PKG_MGR="yum"
+else
+    warn "Unsupported Linux distribution. You may need to manually install system dependencies."
 fi
 
 INSTALL_DIR="${HOME}/.tinkerpilot/app"
@@ -30,30 +42,62 @@ CONFIG_DIR="${HOME}/.tinkerpilot"
 mkdir -p "$CONFIG_DIR"
 
 step "Checking system dependencies..."
-if ! command -v brew &> /dev/null; then
-    warn "Homebrew not found. Installing..."
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-fi
 
+# Python
 if ! command -v python3 &> /dev/null; then
-    info "Installing Python 3..."
-    brew install python@3.12
+    warn "Python 3 is missing."
+    if [ "$PKG_MGR" == "brew" ]; then
+        info "Installing Python 3 via Homebrew..."
+        brew install python@3.12
+    elif [ "$PKG_MGR" == "apt" ]; then
+        info "Installing Python 3 and venv via APT..."
+        sudo apt-get update && sudo apt-get install -y python3 python3-venv python3-pip
+    elif [ "$PKG_MGR" == "yum" ]; then
+        info "Installing Python 3 via YUM..."
+        sudo yum install -y python3
+    else
+        error "Please manually install Python 3.10+ before continuing."
+    fi
 fi
 
+# espeak-ng (TTS)
 if ! command -v espeak-ng &> /dev/null; then
-    info "Installing espeak-ng (required for text-to-speech)..."
-    brew install espeak-ng
+    warn "espeak-ng (required for TTS) is missing."
+    if [ "$PKG_MGR" == "brew" ]; then
+        info "Installing espeak-ng..."
+        brew install espeak-ng
+    elif [ "$PKG_MGR" == "apt" ]; then
+        info "Installing espeak-ng via APT..."
+        sudo apt-get install -y espeak-ng
+    elif [ "$PKG_MGR" == "yum" ]; then
+        info "Installing espeak-ng via YUM..."
+        sudo yum install -y espeak-ng
+    fi
 fi
 
+# ffmpeg (Audio Processing)
 if ! command -v ffmpeg &> /dev/null; then
-    info "Installing ffmpeg (required for audio processing)..."
-    brew install ffmpeg
+    warn "ffmpeg (required for Audio processing) is missing."
+    if [ "$PKG_MGR" == "brew" ]; then
+        info "Installing ffmpeg..."
+        brew install ffmpeg
+    elif [ "$PKG_MGR" == "apt" ]; then
+        info "Installing ffmpeg via APT..."
+        sudo apt-get install -y ffmpeg
+    elif [ "$PKG_MGR" == "yum" ]; then
+        info "Installing ffmpeg via YUM..."
+        sudo yum install -y ffmpeg
+    fi
 fi
 
 # Smarter Ollama Installation
 if ! command -v ollama &> /dev/null; then
     info "Installing Ollama (local AI engine)..."
-    brew install ollama
+    if [ "$PKG_MGR" == "brew" ]; then
+        brew install ollama
+    else
+        curl -fsSL https://ollama.com/install.sh | sh
+    fi
     # Mark that TinkerPilot is the one that installed Ollama
     touch "$CONFIG_DIR/.tp_installed_ollama"
 else
@@ -88,12 +132,16 @@ if [ ! -f "$CONFIG_FILE" ]; then
     
     read -p "1. Enter your Hugging Face Token (or press Enter to skip): " HF_TOKEN
     
-    echo "2. Do you want to enable Apple Notes indexing? (y/N): " 
-    read ENABLE_NOTES
-    if [[ "$ENABLE_NOTES" =~ ^[Yy]$ ]]; then
-        NOTES_BOOL="true"
+    if [ "$(uname)" == "Darwin" ]; then
+        echo "2. Do you want to enable Apple Notes indexing? (y/N): " 
+        read ENABLE_NOTES
+        if [[ "$ENABLE_NOTES" =~ ^[Yy]$ ]]; then
+            NOTES_BOOL="true"
+        else
+            NOTES_BOOL="false"
+        fi
     else
-        NOTES_BOOL="false"
+        NOTES_BOOL="false" # Disable Apple Notes inherently on Linux
     fi
 
     echo "Generating config file at $CONFIG_FILE..."
@@ -132,8 +180,21 @@ info "Python environment ready."
 
 step "Setting up frontend UI..."
 if ! command -v node &> /dev/null; then
-    info "Installing Node.js to build UI..."
-    brew install node
+    warn "Node.js is missing (required to build UI)."
+    if [ "$PKG_MGR" == "brew" ]; then
+        info "Installing Node.js via Homebrew..."
+        brew install node
+    elif [ "$PKG_MGR" == "apt" ]; then
+        info "Installing Node.js via APT..."
+        curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+        sudo apt-get install -y nodejs
+    elif [ "$PKG_MGR" == "yum" ]; then
+        info "Installing Node.js via YUM..."
+        curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
+        sudo yum install -y nodejs
+    else
+        error "Please manually install Node.js 18+ before continuing."
+    fi
 fi
 cd "$INSTALL_DIR/frontend"
 npm install --silent
