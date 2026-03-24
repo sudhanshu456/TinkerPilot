@@ -655,26 +655,51 @@ def speak(
     """Convert text to speech using Kokoro TTS."""
     from app.core.tts import speak as tts_speak, list_voices
 
-    console.print("[dim]Generating speech...[/dim]")
-
-    wav_path = tts_speak(text, voice=voice, speed=speed, output_path=output)
+    # Check if the input text is a valid file path
+    path = Path(text).expanduser().resolve()
+    if path.is_file():
+        try:
+            content = path.read_text(encoding="utf-8").strip()
+            if content:
+                text = content
+                console.print(f"[dim]Reading from file: {path.name}...[/dim]")
+            else:
+                console.print(f"[yellow]File {path.name} is empty.[/yellow]")
+                raise typer.Exit(1)
+        except UnicodeDecodeError:
+            pass  # Fall back to raw text if it's binary or invalid
 
     if output:
+        console.print("[dim]Generating speech...[/dim]")
+        wav_path = tts_speak(text, voice=voice, speed=speed, output_path=output)
         console.print(f"[green]Audio saved to: {output}[/green]")
     else:
-        # Play the audio
+        # Play the audio as it's being generated (Streaming TTS)
         try:
             import sounddevice as sd
-            import soundfile as sf
-
-            data, sr = sf.read(wav_path)
-            console.print("[dim]Playing...[/dim]")
-            sd.play(data, sr)
-            sd.wait()
-            Path(wav_path).unlink(missing_ok=True)
+            import threading
+            import queue
+            from app.core.tts import stream_audio_blocks, SAMPLE_RATE
+            
+            audio_queue = queue.Queue()
+            
+            def producer():
+                for audio_chunk in stream_audio_blocks(text, voice=voice, speed=speed):
+                    audio_queue.put(audio_chunk)
+                audio_queue.put(None)
+                
+            threading.Thread(target=producer, daemon=True).start()
+            
+            console.print("[dim]Generating and streaming speech...[/dim]")
+            while True:
+                chunk = audio_queue.get()
+                if chunk is None:
+                    break
+                sd.play(chunk, SAMPLE_RATE)
+                sd.wait()
+                
         except Exception as e:
             console.print(f"[yellow]Could not play audio: {e}[/yellow]")
-            console.print(f"Audio saved at: {wav_path}")
 
 
 @app.command()

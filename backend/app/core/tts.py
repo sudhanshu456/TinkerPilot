@@ -100,6 +100,19 @@ def _generate_audio(
     return np.concatenate(all_audio)
 
 
+def stream_audio_blocks(
+    text: str,
+    voice: Optional[str] = None,
+    speed: float = 1.0,
+):
+    """Generate audio dynamically and yield chunks as numpy arrays."""
+    pipeline = get_tts_pipeline()
+    voice_id = VOICES.get(voice, voice) if voice else DEFAULT_VOICE
+
+    for _, _, audio in pipeline(text, voice=voice_id, speed=speed):
+        yield audio
+
+
 def speak(
     text: str,
     voice: Optional[str] = None,
