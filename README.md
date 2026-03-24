@@ -174,8 +174,9 @@ tp convert data.csv --to json
 # Shell command helper
 tp cmd "find all python files modified in the last week"
 
-# Git digest
+# Git digest & Auto-commit messages
 tp git-digest /path/to/repo
+tp git-commit-msg .
 
 # Text-to-speech
 tp speak "Hello from TinkerPilot"

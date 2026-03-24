@@ -427,6 +427,80 @@ def git_digest_cmd(
     console.print(Markdown(digest))
 
 
+# ─── Git Commit Msg ───────────────────────────────────────────
+
+
+@app.command(name="git-commit-msg")
+def git_commit_msg_cmd(
+    repo_path: str = typer.Argument(".", help="Path to git repository"),
+):
+    """Generate a commit message based on working directory changes."""
+    import subprocess
+    from app.core.llm import generate
+
+    repo = Path(repo_path).expanduser().resolve()
+    if not (repo / ".git").exists():
+        console.print(f"[red]Not a git repository: {repo}[/red]")
+        raise typer.Exit(1)
+
+    # Check for staged changes
+    staged_diff = subprocess.run(
+        ["git", "diff", "--staged"], cwd=str(repo), capture_output=True, text=True
+    ).stdout.strip()
+
+    # Check for unstaged changes
+    unstaged_diff = subprocess.run(
+        ["git", "diff"], cwd=str(repo), capture_output=True, text=True
+    ).stdout.strip()
+
+    if not staged_diff and not unstaged_diff:
+        # Check for untracked files
+        untracked = subprocess.run(
+            ["git", "ls-files", "--others", "--exclude-standard"],
+            cwd=str(repo),
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        if untracked:
+            console.print(
+                "[yellow]Only untracked files found. Please `git add` them first to generate a message.[/yellow]"
+            )
+        else:
+            console.print("[yellow]No changes found to commit.[/yellow]")
+        return
+
+    # Prefer staged, fallback to unstaged
+    diff_to_use = staged_diff if staged_diff else unstaged_diff
+    status_msg = "staged" if staged_diff else "unstaged"
+
+    console.print(f"[dim]Analyzing {status_msg} changes to generate commit message...[/dim]")
+
+    # Limit diff size to prevent context window explosion
+    if len(diff_to_use) > 12000:
+        diff_to_use = diff_to_use[:12000] + "\n... [diff truncated]"
+
+    prompt = f"""Generate a concise, professional git commit message based on the following code changes.
+Use the conventional commits format (e.g., feat: added login, fix: resolved crash, refactor: cleaned up layout).
+Output ONLY the commit message, nothing else. Do not wrap it in quotes.
+
+Changes:
+{diff_to_use}"""
+
+    msg = generate(
+        prompt,
+        system_prompt="You are a senior developer writing a commit message. Output ONLY the message.",
+        temperature=0.2,
+    )
+
+    console.print("\n[bold green]Suggested Commit Message:[/bold green]")
+    console.print(f"[cyan]{msg.strip()}[/cyan]\n")
+
+    if not staged_diff:
+        console.print(
+            "[dim]Note: These changes are not staged yet. Run `git add` before committing.[/dim]"
+        )
+
+
 # ─── Digest ───────────────────────────────────────────────────
 
 
