@@ -40,56 +40,60 @@ echo "Your configuration and database (tasks, meetings, transcripts) are stored 
 echo ""
 read -p "Do you want to completely DELETE all your data and configuration? (y/N) " wipe_data
 
+# Track if we are wiping everything before we actually wipe it so we can read the ollama marker
+WIPE_ALL=false
 if [[ "$wipe_data" =~ ^[Yy]$ ]]; then
-    rm -rf "$HOME/.tinkerpilot"
-    echo -e "${GREEN}Removed all TinkerPilot data and code ($HOME/.tinkerpilot).${NC}"
-else
-    rm -rf "$HOME/.tinkerpilot/app"
-    echo -e "${GREEN}Removed application code ($HOME/.tinkerpilot/app).${NC}"
-    echo -e "${YELLOW}Your personal data and configuration were safely kept in $HOME/.tinkerpilot${NC}"
+    WIPE_ALL=true
 fi
 
-# 3. Remove Ollama models (Optional)
-echo -e "\n${BLUE}[3/3] AI Models...${NC}"
-echo "TinkerPilot downloaded Qwen2.5 (3B) and Qwen3-Embedding (0.6B) via Ollama (~2.6GB total)."
-echo "Other applications on your Mac might be using Ollama."
-echo ""
-echo "What would you like to do with Ollama?"
-echo "  1) Keep Ollama and all models (Default)"
-echo "  2) Delete ONLY the models TinkerPilot downloaded (Qwen2.5, Qwen3-Embedding)"
-echo "  3) Completely uninstall Ollama from my Mac"
-read -p "Select an option (1-3): " ollama_choice
-
-if [[ "$ollama_choice" == "2" ]]; then
-    if command -v ollama &> /dev/null; then
-        echo "Removing TinkerPilot models..."
-        # Start ollama temporarily if it's not running
-        if ! curl -s http://localhost:11434/api/tags &> /dev/null; then
-            ollama serve &> /dev/null &
-            OLLAMA_PID=$!
-            sleep 2
-        fi
-        
-        ollama rm qwen2.5:3b 2>/dev/null || true
-        ollama rm qwen3-embedding:0.6b 2>/dev/null || true
-        echo -e "${GREEN}Removed Qwen models. Ollama remains installed.${NC}"
-        
-        if [ ! -z "$OLLAMA_PID" ]; then
-            kill $OLLAMA_PID 2>/dev/null || true
-        fi
-    else
-        echo "Ollama not found. Skipping."
-    fi
-elif [[ "$ollama_choice" == "3" ]]; then
-    if command -v brew &> /dev/null; then
-        echo "Uninstalling Ollama via Homebrew..."
+# 3. Remove Ollama models/app
+echo -e "\n${BLUE}[3/3] AI Engine & Models...${NC}"
+if [ -f "$HOME/.tinkerpilot/.tp_installed_ollama" ]; then
+    echo "TinkerPilot originally installed Ollama on your system to run AI models locally."
+    read -p "Do you want to completely uninstall Ollama and remove all models? (y/N) " remove_ollama
+    if [[ "$remove_ollama" =~ ^[Yy]$ ]]; then
+        echo "Uninstalling Ollama..."
         brew uninstall ollama || true
-        echo -e "${GREEN}Completely uninstalled Ollama.${NC}"
+        rm -f "$HOME/.tinkerpilot/.tp_installed_ollama"
+        echo -e "${GREEN}Ollama has been uninstalled.${NC}"
     else
-        echo "Homebrew not found. Could not automatically uninstall Ollama."
+        echo "Kept Ollama and its models."
     fi
 else
-    echo -e "${GREEN}Kept Ollama and all AI models.${NC}"
+    echo "Ollama was already installed on your system before TinkerPilot."
+    echo "TinkerPilot downloaded Qwen2.5 (3B) and Qwen3-Embedding (0.6B) (~2.6GB total)."
+    read -p "Do you want to delete ONLY these specific models to free up space? (y/N) " remove_models
+    
+    if [[ "$remove_models" =~ ^[Yy]$ ]]; then
+        if command -v ollama &> /dev/null; then
+            if ! curl -s http://localhost:11434/api/tags &> /dev/null; then
+                ollama serve &> /dev/null &
+                OLLAMA_PID=$!
+                sleep 2
+            fi
+            
+            echo "Removing TinkerPilot models..."
+            ollama rm qwen2.5:3b 2>/dev/null || true
+            ollama rm qwen3-embedding:0.6b 2>/dev/null || true
+            echo -e "${GREEN}Removed Qwen models. Ollama remains installed.${NC}"
+            
+            if [ ! -z "$OLLAMA_PID" ]; then kill $OLLAMA_PID 2>/dev/null || true; fi
+        else
+            echo "Ollama not found. Skipping."
+        fi
+    else
+        echo "Kept AI models."
+    fi
+fi
+
+# Finally, execute the data wipe if requested
+if [ "$WIPE_ALL" = true ]; then
+    rm -rf "$HOME/.tinkerpilot"
+    echo -e "\n${GREEN}Removed all TinkerPilot data and code ($HOME/.tinkerpilot).${NC}"
+else
+    rm -rf "$HOME/.tinkerpilot/app"
+    echo -e "\n${GREEN}Removed application code ($HOME/.tinkerpilot/app).${NC}"
+    echo -e "${YELLOW}Your personal data and configuration were safely kept in $HOME/.tinkerpilot${NC}"
 fi
 
 echo ""

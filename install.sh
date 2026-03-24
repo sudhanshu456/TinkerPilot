@@ -21,23 +21,20 @@ echo "  Local AI Assistant for Developers"
 echo "============================================"
 echo ""
 
-# Ensure we're on macOS
 if [ "$(uname)" != "Darwin" ]; then
     error "TinkerPilot currently only supports macOS (Apple Silicon recommended)."
 fi
 
-# Determine install dir
 INSTALL_DIR="${HOME}/.tinkerpilot/app"
 CONFIG_DIR="${HOME}/.tinkerpilot"
+mkdir -p "$CONFIG_DIR"
 
-# 1. Check/Install Homebrew
 step "Checking system dependencies..."
 if ! command -v brew &> /dev/null; then
     warn "Homebrew not found. Installing..."
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 fi
 
-# 2. Check/Install Python and Dependencies
 if ! command -v python3 &> /dev/null; then
     info "Installing Python 3..."
     brew install python@3.12
@@ -53,19 +50,24 @@ if ! command -v ffmpeg &> /dev/null; then
     brew install ffmpeg
 fi
 
+# Smarter Ollama Installation
 if ! command -v ollama &> /dev/null; then
     info "Installing Ollama (local AI engine)..."
     brew install ollama
+    # Mark that TinkerPilot is the one that installed Ollama
+    touch "$CONFIG_DIR/.tp_installed_ollama"
+else
+    info "Ollama is already installed."
+    # Ensure the marker doesn't exist if they already had it
+    rm -f "$CONFIG_DIR/.tp_installed_ollama"
 fi
 
-# Start Ollama
 if ! curl -s http://localhost:11434/api/tags &> /dev/null; then
     info "Starting Ollama server in background..."
     ollama serve &> /dev/null &
     sleep 3
 fi
 
-# 3. Clone Repository
 step "Downloading TinkerPilot..."
 if [ -d "$INSTALL_DIR" ]; then
     info "Updating existing installation at $INSTALL_DIR..."
@@ -73,13 +75,11 @@ if [ -d "$INSTALL_DIR" ]; then
     git pull origin main --quiet || true
 else
     info "Cloning to $INSTALL_DIR..."
-    git clone https://github.com/your-username/tinkerpilot.git "$INSTALL_DIR" --quiet
+    git clone https://github.com/sudhanshu/tinkerpilot.git "$INSTALL_DIR" --quiet
     cd "$INSTALL_DIR"
 fi
 
-# 4. Interactive Configuration
 step "Configuring TinkerPilot..."
-mkdir -p "$CONFIG_DIR"
 CONFIG_FILE="$CONFIG_DIR/config.yaml"
 
 if [ ! -f "$CONFIG_FILE" ]; then
@@ -122,7 +122,6 @@ else
     info "Config file already exists at $CONFIG_FILE. Skipping setup."
 fi
 
-# 5. Build Python Environment
 step "Setting up backend..."
 cd "$INSTALL_DIR/backend"
 python3 -m venv .venv
@@ -131,7 +130,6 @@ pip install --upgrade pip -q
 pip install -e . -q
 info "Python environment ready."
 
-# 6. Build Frontend (Requires Node.js for setup only)
 step "Setting up frontend UI..."
 if ! command -v node &> /dev/null; then
     info "Installing Node.js to build UI..."
@@ -142,7 +140,6 @@ npm install --silent
 npm run build --silent
 info "Frontend built as static app."
 
-# Initialize DB
 cd "$INSTALL_DIR/backend"
 python -c "
 import sys; sys.path.insert(0, '.')
@@ -152,7 +149,6 @@ ensure_directories()
 init_db()
 "
 
-# 7. Create Global Command
 step "Creating 'tp' global command..."
 BIN_DIR="/usr/local/bin"
 if [ ! -w "$BIN_DIR" ]; then
@@ -170,10 +166,8 @@ source .venv/bin/activate
 exec python -m cli.main "\$@"
 EOL
 chmod +x "$BIN_DIR/tp"
-
 info "Created global command: ${BIN_DIR}/tp"
 
-# 8. Download AI Models
 step "Downloading AI Models (this will take a few minutes)..."
 ollama pull qwen2.5:3b
 ollama pull qwen3-embedding:0.6b
@@ -188,7 +182,4 @@ echo -e "  ${BLUE}tp serve${NC}"
 echo ""
 echo "To chat from the terminal, run:"
 echo -e "  ${BLUE}tp ask \"How do I write a bash script?\"${NC}"
-echo ""
-echo "To start a live transcription, run:"
-echo -e "  ${BLUE}tp listen --duration 60${NC}"
 echo ""
