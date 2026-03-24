@@ -25,10 +25,10 @@ fi
 echo -e "\n${BLUE}[1/3] Removing global command...${NC}"
 if [ -f "/usr/local/bin/tp" ]; then
     sudo rm -f "/usr/local/bin/tp" 2>/dev/null || rm -f "/usr/local/bin/tp"
-    echo "Removed /usr/local/bin/tp"
+    echo -e "${GREEN}Removed /usr/local/bin/tp${NC}"
 elif [ -f "$HOME/.local/bin/tp" ]; then
     rm -f "$HOME/.local/bin/tp"
-    echo "Removed $HOME/.local/bin/tp"
+    echo -e "${GREEN}Removed $HOME/.local/bin/tp${NC}"
 else
     echo "Global 'tp' command not found. Skipping."
 fi
@@ -52,21 +52,27 @@ fi
 # 3. Remove Ollama models (Optional)
 echo -e "\n${BLUE}[3/3] AI Models...${NC}"
 echo "TinkerPilot downloaded Qwen2.5 (3B) and Qwen3-Embedding (0.6B) via Ollama (~2.6GB total)."
-read -p "Do you want to delete these AI models from your computer to free up space? (y/N) " wipe_models
+echo "Other applications on your Mac might be using Ollama."
+echo ""
+echo "What would you like to do with Ollama?"
+echo "  1) Keep Ollama and all models (Default)"
+echo "  2) Delete ONLY the models TinkerPilot downloaded (Qwen2.5, Qwen3-Embedding)"
+echo "  3) Completely uninstall Ollama from my Mac"
+read -p "Select an option (1-3): " ollama_choice
 
-if [[ "$wipe_models" =~ ^[Yy]$ ]]; then
+if [[ "$ollama_choice" == "2" ]]; then
     if command -v ollama &> /dev/null; then
-        # Start ollama temporarily if it's not running so we can delete models
+        echo "Removing TinkerPilot models..."
+        # Start ollama temporarily if it's not running
         if ! curl -s http://localhost:11434/api/tags &> /dev/null; then
             ollama serve &> /dev/null &
             OLLAMA_PID=$!
             sleep 2
         fi
         
-        echo "Removing models..."
         ollama rm qwen2.5:3b 2>/dev/null || true
         ollama rm qwen3-embedding:0.6b 2>/dev/null || true
-        echo -e "${GREEN}Removed Ollama models.${NC}"
+        echo -e "${GREEN}Removed Qwen models. Ollama remains installed.${NC}"
         
         if [ ! -z "$OLLAMA_PID" ]; then
             kill $OLLAMA_PID 2>/dev/null || true
@@ -74,8 +80,16 @@ if [[ "$wipe_models" =~ ^[Yy]$ ]]; then
     else
         echo "Ollama not found. Skipping."
     fi
+elif [[ "$ollama_choice" == "3" ]]; then
+    if command -v brew &> /dev/null; then
+        echo "Uninstalling Ollama via Homebrew..."
+        brew uninstall ollama || true
+        echo -e "${GREEN}Completely uninstalled Ollama.${NC}"
+    else
+        echo "Homebrew not found. Could not automatically uninstall Ollama."
+    fi
 else
-    echo "Kept AI models."
+    echo -e "${GREEN}Kept Ollama and all AI models.${NC}"
 fi
 
 echo ""
