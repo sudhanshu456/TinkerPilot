@@ -50,7 +50,7 @@ async def transcribe_audio(
     language: Optional[str] = Form(None),
 ):
     """Upload an audio file, transcribe it, and generate a summary."""
-    from app.core.whisper_stt import transcribe_file
+    from app.core.moonshine_stt import transcribe_file
 
     AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 

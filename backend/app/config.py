@@ -11,7 +11,6 @@ from typing import Optional
 
 import yaml
 
-
 # Base directories
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent  # TinkerPilot/
 USER_DATA_DIR = Path.home() / ".tinkerpilot"
@@ -74,7 +73,7 @@ class IntegrationConfig:
 class AppConfig:
     llm: LLMConfig = field(default_factory=LLMConfig)
     embedding: EmbeddingConfig = field(default_factory=EmbeddingConfig)
-    whisper: STTConfig = field(default_factory=STTConfig)
+    stt: STTConfig = field(default_factory=STTConfig)
     tts: TTSConfig = field(default_factory=TTSConfig)
     rag: RAGConfig = field(default_factory=RAGConfig)
     integrations: IntegrationConfig = field(default_factory=IntegrationConfig)
@@ -99,8 +98,8 @@ def load_config(config_path: Optional[str] = None) -> AppConfig:
         section_map = {
             "llm": config.llm,
             "embedding": config.embedding,
-            "whisper": config.whisper,
-            "stt": config.whisper,  # alias
+            "stt": config.stt,
+            "whisper": config.stt,  # backward compatibility alias
             "tts": config.tts,
             "rag": config.rag,
             "integrations": config.integrations,

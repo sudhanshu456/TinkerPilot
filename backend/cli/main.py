@@ -534,7 +534,7 @@ def listen(
         sf.write(tmp.name, audio, sample_rate)
         tmp_path = tmp.name
 
-    from app.core.whisper_stt import transcribe_file
+    from app.core.moonshine_stt import transcribe_file
 
     result = transcribe_file(tmp_path, language=language)
 

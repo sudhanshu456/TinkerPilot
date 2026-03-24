@@ -30,7 +30,7 @@ def _ensure_model():
     from moonshine_voice import download
 
     config = get_config()
-    language = config.whisper.language or "en"
+    language = config.stt.language or "en"
 
     logger.info(f"Ensuring Moonshine model is downloaded for language: {language}")
     _model_path, _model_arch = download.get_model_for_language(language)
@@ -38,7 +38,7 @@ def _ensure_model():
     return _model_path, _model_arch
 
 
-def get_whisper_model():
+def get_stt_model():
     """Get or initialize the Moonshine transcriber. Lazy-loaded."""
     global _transcriber
     if _transcriber is not None:
@@ -54,7 +54,7 @@ def get_whisper_model():
     return _transcriber
 
 
-def unload_whisper():
+def unload_stt():
     """Unload Moonshine model to free memory."""
     global _transcriber, _model_path, _model_arch
     if _transcriber is not None:
@@ -145,7 +145,7 @@ def transcribe_file(
     return {
         "text": full_text,
         "segments": segments,
-        "language": language or config.whisper.language,
+        "language": language or config.stt.language,
         "language_probability": 1.0,
     }
 

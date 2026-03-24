@@ -107,7 +107,7 @@ llm:
 embedding:
   model_name: "qwen3-embedding:0.6b"
 
-whisper:
+stt:
   model_size: small
   language: en
 
