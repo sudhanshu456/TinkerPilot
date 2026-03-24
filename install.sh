@@ -1,0 +1,194 @@
+#!/bin/bash
+# TinkerPilot Interactive Installer
+# Usage: curl -fsSL https://raw.githubusercontent.com/username/tinkerpilot/main/install.sh | bash
+
+set -e
+
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+info() { echo -e "${GREEN}[OK]${NC} $1"; }
+warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
+step() { echo -e "\n${BLUE}[STEP]${NC} $1"; }
+
+echo "============================================"
+echo "  TinkerPilot - Installer"
+echo "  Local AI Assistant for Developers"
+echo "============================================"
+echo ""
+
+# Ensure we're on macOS
+if [ "$(uname)" != "Darwin" ]; then
+    error "TinkerPilot currently only supports macOS (Apple Silicon recommended)."
+fi
+
+# Determine install dir
+INSTALL_DIR="${HOME}/.tinkerpilot/app"
+CONFIG_DIR="${HOME}/.tinkerpilot"
+
+# 1. Check/Install Homebrew
+step "Checking system dependencies..."
+if ! command -v brew &> /dev/null; then
+    warn "Homebrew not found. Installing..."
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+fi
+
+# 2. Check/Install Python and Dependencies
+if ! command -v python3 &> /dev/null; then
+    info "Installing Python 3..."
+    brew install python@3.12
+fi
+
+if ! command -v espeak-ng &> /dev/null; then
+    info "Installing espeak-ng (required for text-to-speech)..."
+    brew install espeak-ng
+fi
+
+if ! command -v ffmpeg &> /dev/null; then
+    info "Installing ffmpeg (required for audio processing)..."
+    brew install ffmpeg
+fi
+
+if ! command -v ollama &> /dev/null; then
+    info "Installing Ollama (local AI engine)..."
+    brew install ollama
+fi
+
+# Start Ollama
+if ! curl -s http://localhost:11434/api/tags &> /dev/null; then
+    info "Starting Ollama server in background..."
+    ollama serve &> /dev/null &
+    sleep 3
+fi
+
+# 3. Clone Repository
+step "Downloading TinkerPilot..."
+if [ -d "$INSTALL_DIR" ]; then
+    info "Updating existing installation at $INSTALL_DIR..."
+    cd "$INSTALL_DIR"
+    git pull origin main --quiet || true
+else
+    info "Cloning to $INSTALL_DIR..."
+    git clone https://github.com/your-username/tinkerpilot.git "$INSTALL_DIR" --quiet
+    cd "$INSTALL_DIR"
+fi
+
+# 4. Interactive Configuration
+step "Configuring TinkerPilot..."
+mkdir -p "$CONFIG_DIR"
+CONFIG_FILE="$CONFIG_DIR/config.yaml"
+
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "Let's set up your preferences!"
+    echo ""
+    
+    read -p "1. Enter your Hugging Face Token (or press Enter to skip): " HF_TOKEN
+    
+    echo "2. Do you want to enable Apple Notes indexing? (y/N): " 
+    read ENABLE_NOTES
+    if [[ "$ENABLE_NOTES" =~ ^[Yy]$ ]]; then
+        NOTES_BOOL="true"
+    else
+        NOTES_BOOL="false"
+    fi
+
+    echo "Generating config file at $CONFIG_FILE..."
+    cat > "$CONFIG_FILE" << EOL
+hf_token: "${HF_TOKEN}"
+
+llm:
+  model_name: "qwen2.5:3b"
+  temperature: 0.7
+
+embedding:
+  model_name: "qwen3-embedding:0.6b"
+
+whisper:
+  model_size: small
+  language: en
+
+rag:
+  chunk_size: 512
+  top_k: 5
+
+integrations:
+  enable_apple_notes: ${NOTES_BOOL}
+EOL
+else
+    info "Config file already exists at $CONFIG_FILE. Skipping setup."
+fi
+
+# 5. Build Python Environment
+step "Setting up backend..."
+cd "$INSTALL_DIR/backend"
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip -q
+pip install -e . -q
+info "Python environment ready."
+
+# 6. Build Frontend (Requires Node.js for setup only)
+step "Setting up frontend UI..."
+if ! command -v node &> /dev/null; then
+    info "Installing Node.js to build UI..."
+    brew install node
+fi
+cd "$INSTALL_DIR/frontend"
+npm install --silent
+npm run build --silent
+info "Frontend built as static app."
+
+# Initialize DB
+cd "$INSTALL_DIR/backend"
+python -c "
+import sys; sys.path.insert(0, '.')
+from app.config import ensure_directories
+from app.db.sqlite import init_db
+ensure_directories()
+init_db()
+"
+
+# 7. Create Global Command
+step "Creating 'tp' global command..."
+BIN_DIR="/usr/local/bin"
+if [ ! -w "$BIN_DIR" ]; then
+    BIN_DIR="$HOME/.local/bin"
+    mkdir -p "$BIN_DIR"
+    if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
+        warn "Please add $BIN_DIR to your PATH"
+    fi
+fi
+
+cat > "$BIN_DIR/tp" << EOL
+#!/bin/bash
+cd "$INSTALL_DIR/backend"
+source .venv/bin/activate
+exec python -m cli.main "\$@"
+EOL
+chmod +x "$BIN_DIR/tp"
+
+info "Created global command: ${BIN_DIR}/tp"
+
+# 8. Download AI Models
+step "Downloading AI Models (this will take a few minutes)..."
+ollama pull qwen2.5:3b
+ollama pull qwen3-embedding:0.6b
+
+echo ""
+echo "============================================"
+echo -e "${GREEN}TinkerPilot Installed Successfully!${NC}"
+echo "============================================"
+echo ""
+echo "To start the web interface, run:"
+echo -e "  ${BLUE}tp serve${NC}"
+echo ""
+echo "To chat from the terminal, run:"
+echo -e "  ${BLUE}tp ask \"How do I write a bash script?\"${NC}"
+echo ""
+echo "To start a live transcription, run:"
+echo -e "  ${BLUE}tp listen --duration 60${NC}"
+echo ""
