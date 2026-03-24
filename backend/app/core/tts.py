@@ -27,7 +27,13 @@ def get_tts_pipeline():
 
     # Enable MPS fallback for Apple Silicon GPU acceleration
     os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+    # Suppress Hugging Face hub warnings
     os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+    os.environ.setdefault("HF_HUB_DISABLE_IMPLICIT_TOKEN", "1")
+
+    import logging
+
+    logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 
     import warnings
 
@@ -37,7 +43,7 @@ def get_tts_pipeline():
     from kokoro import KPipeline
 
     logger.info("Loading Kokoro TTS pipeline...")
-    _pipeline = KPipeline(lang_code="a")  # American English
+    _pipeline = KPipeline(lang_code="a", repo_id="hexgrad/Kokoro-82M")  # American English
     logger.info("Kokoro TTS pipeline loaded.")
     return _pipeline
 
