@@ -27,13 +27,19 @@ def get_tts_pipeline():
 
     # Enable MPS fallback for Apple Silicon GPU acceleration
     os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
-    # Suppress Hugging Face hub warnings
-    os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
-    os.environ.setdefault("HF_HUB_DISABLE_IMPLICIT_TOKEN", "1")
+    from app.config import get_config
 
-    import logging
+    config = get_config()
+    if config.hf_token:
+        os.environ["HF_TOKEN"] = config.hf_token
+    else:
+        # Suppress Hugging Face hub warnings if no token is provided
+        os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+        os.environ.setdefault("HF_HUB_DISABLE_IMPLICIT_TOKEN", "1")
 
-    logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
+        import logging
+
+        logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 
     import warnings
 

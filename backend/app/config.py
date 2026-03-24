@@ -79,6 +79,7 @@ class AppConfig:
     rag: RAGConfig = field(default_factory=RAGConfig)
     integrations: IntegrationConfig = field(default_factory=IntegrationConfig)
     ollama_base_url: str = "http://localhost:11434"
+    hf_token: Optional[str] = None
     host: str = "127.0.0.1"
     port: int = 8000
     debug: bool = False
@@ -110,7 +111,7 @@ def load_config(config_path: Optional[str] = None) -> AppConfig:
                     if hasattr(section_obj, k):
                         setattr(section_obj, k, v)
 
-        for k in ("host", "port", "debug", "ollama_base_url"):
+        for k in ("host", "port", "debug", "ollama_base_url", "hf_token"):
             if k in data:
                 setattr(config, k, data[k])
 
