@@ -178,9 +178,10 @@ if [ ! -f "$CONFIG_FILE" ]; then
     OBSIDIAN_PATH="${OBSIDIAN_PATH/#\~/$HOME}"
 
     echo "Generating config file at $CONFIG_FILE..."
-    cat > "$CONFIG_FILE" << EOF
-hf_token: "${HF_TOKEN}"
 
+    # Write config using a quoted heredoc (no variable expansion) for the base,
+    # then append dynamic values via echo to guarantee valid YAML.
+    cat > "$CONFIG_FILE" << 'CFGEOF'
 llm:
   model_name: "qwen2.5:3b"
   temperature: 0.7
@@ -195,21 +196,22 @@ whisper:
 rag:
   chunk_size: 512
   top_k: 5
+CFGEOF
 
-integrations:
-  enable_apple_notes: ${NOTES_BOOL}
-EOF
+    # Prepend hf_token (written separately to safely handle special chars in the token)
+    {
+        echo "hf_token: \"${HF_TOKEN}\""
+        echo ""
+        cat "$CONFIG_FILE"
+    } > "${CONFIG_FILE}.tmp" && mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
 
-    # Append obsidian path as a separate step to avoid YAML indentation issues
+    # Append integrations block safely via echo
+    echo "" >> "$CONFIG_FILE"
+    echo "integrations:" >> "$CONFIG_FILE"
     if [ -n "$OBSIDIAN_PATH" ]; then
-        # Insert obsidian_vault_path before enable_apple_notes
-        if [ "$(uname)" == "Darwin" ]; then
-            sed -i '' "/enable_apple_notes/i\\
-  obsidian_vault_path: \\"${OBSIDIAN_PATH}\\"" "$CONFIG_FILE"
-        else
-            sed -i "/enable_apple_notes/i\\  obsidian_vault_path: \"${OBSIDIAN_PATH}\"" "$CONFIG_FILE"
-        fi
+        echo "  obsidian_vault_path: \"${OBSIDIAN_PATH}\"" >> "$CONFIG_FILE"
     fi
+    echo "  enable_apple_notes: ${NOTES_BOOL}" >> "$CONFIG_FILE"
 else
     info "Config file already exists at $CONFIG_FILE. Skipping setup."
 fi
