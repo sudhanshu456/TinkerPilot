@@ -257,6 +257,8 @@ tp git-commit-msg .
 # Text-to-speech
 tp speak "Hello from TinkerPilot"
 tp speak "Save this" --output speech.wav --voice adam
+tp speak README.md --summarize
+tp speak README.md --summarize --output summary.wav --voice michael
 tp voices
 
 # Check Git repo for leaked API keys/secrets

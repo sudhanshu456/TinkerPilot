@@ -651,6 +651,9 @@ def speak(
     output: Optional[str] = typer.Option(
         None, "--output", "-o", help="Save to WAV file instead of playing"
     ),
+    summarize: bool = typer.Option(
+        False, "--summarize", help="Summarize the text/file concisely before speaking"
+    ),
 ):
     """Convert text to speech using Kokoro TTS."""
     from app.core.tts import speak as tts_speak, list_voices
@@ -668,6 +671,16 @@ def speak(
                 raise typer.Exit(1)
         except UnicodeDecodeError:
             pass  # Fall back to raw text if it's binary or invalid
+
+    if summarize:
+        from app.core.llm import generate
+
+        console.print("[dim]Generating a quick summary to speak...[/dim]")
+        prompt = f"""Summarize the following text cleanly and conversationally. Do NOT use markdown tables, asterisks, or complex formatting. Output ONLY spoken words:
+
+{text[:15000]}"""
+        text = generate(prompt, system_prompt="You summarize text into conversational scripts suitable for text-to-speech. Concise and clear.", temperature=0.3)
+        console.print(f"\n[bold green]Summary:[/bold green]\n{text}\n")
 
     if output:
         console.print("[dim]Generating speech...[/dim]")
