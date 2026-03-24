@@ -203,12 +203,13 @@ def list_tasks(
     """List tasks."""
     from app.db.sqlite import get_session
     from app.db.models import Task
+    from sqlmodel import select
 
     with get_session() as session:
-        query = session.query(Task)
+        query = select(Task)
         if status:
-            query = query.filter(Task.status == status)
-        tasks = query.order_by(Task.created_at.desc()).all()
+            query = query.where(Task.status == status)
+        tasks = session.exec(query.order_by(Task.created_at.desc())).all()
 
     if not tasks:
         console.print("[yellow]No tasks found.[/yellow]")
@@ -536,8 +537,9 @@ def digest():
 
     # Gather data
     with get_session() as session:
-        pending = session.query(Task).filter(Task.status.in_(["todo", "in_progress"])).all()
-        recent_meetings = session.query(Meeting).order_by(Meeting.date.desc()).limit(3).all()
+        from sqlmodel import select
+        pending = session.exec(select(Task).where(Task.status.in_(["todo", "in_progress"]))).all()
+        recent_meetings = session.exec(select(Meeting).order_by(Meeting.date.desc()).limit(3)).all()
 
     console.print(Panel("[bold]Daily Digest[/bold]", border_style="cyan"))
 
