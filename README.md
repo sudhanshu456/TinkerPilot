@@ -6,21 +6,37 @@ TinkerPilot combines chat-with-docs, meeting transcription, task management, and
 
 ## Features
 
+### 🎙️ Audio & Voice
 | Feature | Description |
 |---------|-------------|
-| **Chat with Documents** | Ingest PDFs, code, markdown, CSV, JSON. Ask questions with RAG-powered semantic search and source citations. |
-| **Meeting Transcription** | Upload audio files, get transcripts + structured summaries with action items (auto-created as tasks). |
-| **Speech-to-Text** | Record and transcribe speech from the terminal. |
-| **Daily Digest** | Morning briefing combining pending tasks, recent meeting summaries, and notes. |
-| **Task Manager** | Create, track, and complete tasks. Auto-extracted from meeting summaries. Kanban-style web UI. |
-| **Apple Notes Search** | Search and retrieve notes from the macOS Notes app. |
-| **Obsidian Integration** | Index and search your Obsidian vault with semantic search. |
-| **Code Explainer** | Drop in any script or code file, get a clear explanation. |
-| **Log Analyzer** | Paste logs, get error patterns and suggested fixes. |
-| **Git Digest** | Summarize recent git activity in any repository. |
-| **Command Helper** | Describe what you want in English, get a shell command. |
-| **File Conversions** | CSV to JSON, JSON to CSV, image to PDF, base64 encode/decode. |
-| **Unified Search** | Search across documents, tasks, meetings, and notes from one place. |
+| **Meeting Transcription** | Record live or upload audio. Get precise transcripts + structured summaries with action items (auto-created as tasks). |
+| **Speech-to-Text** | Record and transcribe your voice directly from the terminal. |
+| **Text-to-Speech** | Convert text into incredibly natural-sounding speech with multiple distinct voices. |
+
+### 🧠 Knowledge & AI
+| Feature | Description |
+|---------|-------------|
+| **Chat with Documents** | Ingest PDFs, code, markdown, CSV, JSON. Ask questions with RAG-powered semantic search and precise source citations. |
+| **Unified Search** | Search across all your documents, tasks, meetings, and notes from a single interface. |
+| **Code Explainer** | Drop in any confusing script or code file and get a clear, concise breakdown of how it works. |
+| **Log Analyzer** | Paste messy error logs to instantly get error patterns and actionable suggested fixes. |
+
+### 🛠️ Developer Productivity
+| Feature | Description |
+|---------|-------------|
+| **Git Commit Generator** | Auto-generate conventional git commit messages based on your staged code diffs. |
+| **Git Digest** | Summarize recent git commit activity in any repository into a readable report. |
+| **Command Helper** | Describe what you want to do in English, and get the exact shell command to execute. |
+| **File Conversions** | Instantly convert files: CSV ↔ JSON, images ➡️ PDF, base64 encode/decode. |
+| **Secret Scanner** | Scan local directories for leaked API keys, tokens, and passwords before pushing to GitHub. |
+
+### 📅 Organization
+| Feature | Description |
+|---------|-------------|
+| **Daily Digest** | A custom morning briefing combining pending tasks, recent meeting summaries, and notes. |
+| **Task Manager** | Create, track, and complete tasks. Kanban-style web UI for managing action items. |
+| **Apple Notes Sync** | Automatically search and retrieve notes directly from your macOS Notes app. |
+| **Obsidian Integration** | Index and search your entire Obsidian markdown vault using semantic AI search. |
 
 ## Architecture
 
