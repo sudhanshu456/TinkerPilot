@@ -613,5 +613,76 @@ def serve(
     uvicorn.run("app.main:app", host=host, port=port, reload=False)
 
 
+# ─── Security ──────────────────────────────────────────────────
+
+
+@app.command(name="check-secrets")
+def check_secrets_cmd(
+    directory: str = typer.Argument(".", help="Directory to scan"),
+):
+    """Scan a directory for hardcoded secrets, API keys, and tokens."""
+    import re
+    import os
+
+    target_dir = Path(directory).expanduser().resolve()
+    if not target_dir.exists():
+        console.print(f"[red]Directory not found: {directory}[/red]")
+        raise typer.Exit(1)
+
+    console.print(f"[dim]Scanning {target_dir} for secrets...[/dim]\n")
+
+    patterns = {
+        "AWS Access Key": r"AKIA[0-9A-Z]{16}",
+        "GitHub Token": r"gh[pousr]_[a-zA-Z0-9]{36}",
+        "Hugging Face Token": r"hf_[a-zA-Z0-9]{34}",
+        "Stripe Key": r"sk_live_[0-9a-zA-Z]{24}",
+        "Generic Secret/Token": r"(?i)(api[_-]?key|secret|token|password)['\"]?\s*[:=]\s*['\"]([a-zA-Z0-9_\-]{12,})['\"]",
+        "RSA Private Key": r"-----BEGIN " + r"RSA PRIVATE KEY-----",
+    }
+
+    ignore_dirs = {".git", ".venv", "node_modules", "out", "__pycache__", ".next", "build", "dist"}
+    found_secrets = False
+
+    for root, dirs, files in os.walk(target_dir):
+        dirs[:] = [d for d in dirs if d not in ignore_dirs]
+
+        for file in files:
+            if file.endswith(
+                (".pyc", ".png", ".jpg", ".pdf", ".wav", ".mp3", ".mp4", ".zip", ".tar.gz", ".lock")
+            ):
+                continue
+
+            filepath = Path(root) / file
+            try:
+                content = filepath.read_text(encoding="utf-8", errors="ignore")
+
+                for secret_name, pattern in patterns.items():
+                    for match in re.finditer(pattern, content):
+                        found_secrets = True
+                        line_no = content.count("\n", 0, match.start()) + 1
+
+                        # Safely redact for display
+                        full_match = match.group(0)
+                        if len(full_match) > 6:
+                            redacted = full_match[:6] + "*" * 10 + full_match[-4:]
+                        else:
+                            redacted = "***REDACTED***"
+
+                        rel_path = filepath.relative_to(target_dir)
+                        console.print(f"[red]🚨 {secret_name} found![/red]")
+                        console.print(f"  File:  [bold]{rel_path}:{line_no}[/bold]")
+                        console.print(f"  Match: [dim]{redacted}[/dim]\n")
+
+            except Exception:
+                pass
+
+    if not found_secrets:
+        console.print("[green]✅ No secrets found! The repository looks clean.[/green]")
+    else:
+        console.print(
+            "[yellow]⚠️  Please review and remove these secrets before committing or pushing your code.[/yellow]"
+        )
+
+
 if __name__ == "__main__":
     app()
