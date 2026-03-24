@@ -213,7 +213,7 @@ cd "$INSTALL_DIR/backend"
 rm -rf .venv
 $PYTHON_CMD -m venv .venv
 source .venv/bin/activate
-pip install --default-timeout=100 --upgrade pip
+# pip install --default-timeout=100 --upgrade pip
 pip install --default-timeout=100 -e .
 info "Python environment ready."
 
