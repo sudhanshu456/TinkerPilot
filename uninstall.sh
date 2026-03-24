@@ -33,22 +33,8 @@ else
     echo "Global 'tp' command not found. Skipping."
 fi
 
-# 2. Remove local domain mapping
-echo -e "\n${BLUE}[2/4] Removing local domain mapping...${NC}"
-if grep -q "tinkerpilot.local" /etc/hosts; then
-    read -p "Remove 'tinkerpilot.local' mapping from /etc/hosts? (Requires sudo) (y/N) " remove_hosts
-    if [[ "$remove_hosts" =~ ^[Yy]$ ]]; then
-        sudo bash -c 'grep -v "tinkerpilot.local" /etc/hosts > /tmp/tp_hosts && mv /tmp/tp_hosts /etc/hosts && chmod 644 /etc/hosts'
-        echo -e "${GREEN}Removed tinkerpilot.local mapping from /etc/hosts.${NC}"
-    else
-        echo "Kept tinkerpilot.local mapping."
-    fi
-else
-    echo "No local domain mapping found. Skipping."
-fi
-
-# 3. Remove application files and (optionally) data
-echo -e "\n${BLUE}[3/4] Removing application files...${NC}"
+# 2. Remove application files and (optionally) data
+echo -e "\n${BLUE}[2/3] Removing application files...${NC}"
 echo "Your TinkerPilot application is stored in ~/.tinkerpilot/app"
 echo "Your configuration and database (tasks, meetings, transcripts) are stored in ~/.tinkerpilot"
 echo ""
@@ -60,8 +46,8 @@ if [[ "$wipe_data" =~ ^[Yy]$ ]]; then
     WIPE_ALL=true
 fi
 
-# 4. Remove Ollama models/app
-echo -e "\n${BLUE}[4/4] AI Engine & Models...${NC}"
+# 3. Remove Ollama models/app
+echo -e "\n${BLUE}[3/3] AI Engine & Models...${NC}"
 if [ -f "$HOME/.tinkerpilot/.tp_installed_ollama" ]; then
     echo "TinkerPilot originally installed Ollama on your system to run AI models locally."
     read -p "Do you want to completely uninstall Ollama and remove all models? (y/N) " remove_ollama

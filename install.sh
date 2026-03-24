@@ -280,22 +280,6 @@ EOL
 chmod +x "$BIN_DIR/tp"
 info "Created global command: ${BIN_DIR}/tp"
 
-step "Setting up local domain (tinkerpilot.local)..."
-if ! grep -q "tinkerpilot.local" /etc/hosts; then
-    echo "Would you like to map 'tinkerpilot.local' to 127.0.0.1 so you can easily access"
-    echo "the web UI via http://tinkerpilot.local:8000 instead of numbers?"
-    read -p "  Add local domain mapping? (y/N): " MAP_DOMAIN
-    if [[ "$MAP_DOMAIN" =~ ^[Yy]$ ]]; then
-        echo "You may be prompted for your administrator password."
-        sudo bash -c 'echo "127.0.0.1 tinkerpilot.local" >> /etc/hosts'
-        info "Successfully mapped tinkerpilot.local to localhost."
-    else
-        info "Skipping local domain mapping."
-    fi
-else
-    info "Domain tinkerpilot.local is already mapped in /etc/hosts."
-fi
-
 step "Downloading AI Models (this will take a few minutes)..."
 ollama pull qwen2.5:3b
 ollama pull qwen3-embedding:0.6b

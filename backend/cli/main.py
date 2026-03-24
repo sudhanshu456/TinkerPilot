@@ -687,25 +687,14 @@ def serve(
     import time
     import socket
 
-    display_host = host
-    if host in ("127.0.0.1", "localhost", "0.0.0.0"):
-        try:
-            # Check if domain is mapped cleanly
-            socket.gethostbyname("tinkerpilot.local")
-            display_host = "tinkerpilot.local"
-        except socket.gaierror:
-            pass
-
     def launch_browser():
         time.sleep(1.5)  # Let Uvicorn boot up
-        webbrowser.open(f"http://{display_host}:{port}")
+        open_host = "127.0.0.1" if host == "0.0.0.0" else host
+        webbrowser.open(f"http://{open_host}:{port}")
 
     threading.Thread(target=launch_browser, daemon=True).start()
 
-    console.print(f"[bold cyan]Starting TinkerPilot server at http://{display_host}:{port}[/bold cyan]")
-    if display_host != host:
-        console.print(f"[dim](Internally binding to {host})[/dim]")
-
+    console.print(f"[bold cyan]Starting TinkerPilot server at http://{host}:{port}[/bold cyan]")
     uvicorn.run("app.main:app", host=host, port=port, reload=False)
 
 
