@@ -155,15 +155,16 @@ CONFIG_FILE="$CONFIG_DIR/config.yaml"
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "Let's set up your preferences!"
     echo ""
-    
-    read -p "1. Enter your Hugging Face Token (or press Enter to skip): " HF_TOKEN
-    
+
+    # Read from /dev/tty so prompts work when script is piped via curl | bash
+    read -p "1. Enter your Hugging Face Token (or press Enter to skip): " HF_TOKEN < /dev/tty
+
     echo "2. Where do you keep your local Markdown notes? (e.g., Obsidian/Logseq vault)"
-    read -p "   Enter full path (or press Enter to skip): " OBSIDIAN_PATH
+    read -p "   Enter full path (or press Enter to skip): " OBSIDIAN_PATH < /dev/tty
 
     if [ "$(uname)" == "Darwin" ]; then
-        echo "3. Do you want to enable Apple Notes indexing? (y/N): " 
-        read ENABLE_NOTES
+        echo -n "3. Do you want to enable Apple Notes indexing? (y/N): "
+        read ENABLE_NOTES < /dev/tty
         if [[ "$ENABLE_NOTES" =~ ^[Yy]$ ]]; then
             NOTES_BOOL="true"
         else
@@ -175,14 +176,9 @@ if [ ! -f "$CONFIG_FILE" ]; then
 
     # Expand tilde in path if provided
     OBSIDIAN_PATH="${OBSIDIAN_PATH/#\~/$HOME}"
-    if [ -n "$OBSIDIAN_PATH" ]; then
-        OBSIDIAN_YAML="obsidian_vault_path: \"$OBSIDIAN_PATH\""
-    else
-        OBSIDIAN_YAML="# obsidian_vault_path: \"~/Documents/ObsidianVault\""
-    fi
 
     echo "Generating config file at $CONFIG_FILE..."
-    cat > "$CONFIG_FILE" << EOL
+    cat > "$CONFIG_FILE" << EOF
 hf_token: "${HF_TOKEN}"
 
 llm:
@@ -201,20 +197,30 @@ rag:
   top_k: 5
 
 integrations:
-  ${OBSIDIAN_YAML}
   enable_apple_notes: ${NOTES_BOOL}
-EOL
+EOF
+
+    # Append obsidian path as a separate step to avoid YAML indentation issues
+    if [ -n "$OBSIDIAN_PATH" ]; then
+        # Insert obsidian_vault_path before enable_apple_notes
+        if [ "$(uname)" == "Darwin" ]; then
+            sed -i '' "/enable_apple_notes/i\\
+  obsidian_vault_path: \\"${OBSIDIAN_PATH}\\"" "$CONFIG_FILE"
+        else
+            sed -i "/enable_apple_notes/i\\  obsidian_vault_path: \"${OBSIDIAN_PATH}\"" "$CONFIG_FILE"
+        fi
+    fi
 else
     info "Config file already exists at $CONFIG_FILE. Skipping setup."
 fi
 
 step "Setting up backend..."
-cd "$INSTALL_DIR/backend"
+cd "$INSTALL_DIR/backend" || error "Backend directory not found at $INSTALL_DIR/backend"
 
 if [ -d ".venv" ]; then
     echo "An existing backend virtual environment was found."
     echo "A clean install prevents Python version conflicts, but takes longer."
-    read -p "  Perform clean install of backend dependencies? (Y/n): " CLEAN_VENV
+    read -p "  Perform clean install of backend dependencies? (Y/n): " CLEAN_VENV < /dev/tty
     if [[ ! "$CLEAN_VENV" =~ ^[Nn]$ ]]; then
         info "Wiping old virtual environment..."
         rm -rf .venv
