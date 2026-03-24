@@ -99,7 +99,7 @@ All inference runs locally via Ollama with Apple Metal GPU acceleration. See [do
 
 ## Requirements
 
-- **macOS** with Apple Silicon (M1/M2/M3/M4) — 8GB RAM minimum
+- **macOS** with Apple Silicon (M1/M2/M3/M4) — 8GB RAM minimum, 16GB+ recommended for best performance
 - **Homebrew** (package manager)
 - **Python 3.10+**
 - **Node.js 18+**
@@ -107,7 +107,7 @@ All inference runs locally via Ollama with Apple Metal GPU acceleration. See [do
 
 ## Quick Start (Global Installation)
 
-The easiest way to install TinkerPilot as a standalone macOS application is via the interactive installer.
+The easiest way to install TinkerPilot as a standalone application is via the interactive installer.
 
 Run this single command in your terminal:
 
