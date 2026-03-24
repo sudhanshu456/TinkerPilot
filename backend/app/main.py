@@ -26,6 +26,12 @@ async def lifespan(app: FastAPI):
     logger.info("Starting TinkerPilot backend...")
     ensure_directories()
     init_db()
+
+    # Pre-warm the daily digest in the background so the UI loads instantly
+    import threading
+    from app.api.digest import prewarm_digest
+    threading.Thread(target=prewarm_digest, daemon=True).start()
+
     config = get_config()
     logger.info(f"Server config: host={config.host}, port={config.port}")
     logger.info(f"LLM model: {config.llm.model_name} (via Ollama)")
@@ -84,25 +90,35 @@ frontend_dist = os.path.join(PROJECT_ROOT, "frontend", "out")
 if os.path.exists(frontend_dist):
     next_assets_dir = os.path.join(frontend_dist, "_next")
     if os.path.exists(next_assets_dir):
+        # Serve the extremely heavy _next JS chunks via high-speed native StaticFiles router
         app.mount("/_next", StaticFiles(directory=next_assets_dir), name="next_assets")
 
-    @app.middleware("http")
-    async def fallback_to_index(request, call_next):
-        response = await call_next(request)
-        if response.status_code == 404 and not request.url.path.startswith("/api"):
-            path = request.url.path.strip("/")
-
-            if not path:
-                path = "index.html"
-            elif not path.endswith(".html"):
-                if os.path.exists(os.path.join(frontend_dist, f"{path}.html")):
-                    path = f"{path}.html"
-                elif not os.path.exists(os.path.join(frontend_dist, path)):
-                    path = "index.html"
-
-            filepath = os.path.join(frontend_dist, path)
-            if os.path.exists(filepath):
-                return FileResponse(filepath)
-        return response
+    # Native catch-all route for SPA navigation (replaces slow middleware)
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        if full_path.startswith("api/"):
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="API route not found")
+            
+        if not full_path:
+            full_path = "index.html"
+            
+        # Try direct file (e.g., favicon.ico)
+        filepath = os.path.join(frontend_dist, full_path)
+        if os.path.exists(filepath) and os.path.isfile(filepath):
+            return FileResponse(filepath)
+            
+        # Try Next.js static exported HTML file (e.g. /chat -> chat.html)
+        html_filepath = os.path.join(frontend_dist, f"{full_path}.html")
+        if os.path.exists(html_filepath) and os.path.isfile(html_filepath):
+            return FileResponse(html_filepath)
+            
+        # Final fallback to root index.html
+        index_filepath = os.path.join(frontend_dist, "index.html")
+        if os.path.exists(index_filepath) and os.path.isfile(index_filepath):
+            return FileResponse(index_filepath)
+            
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="File not found")
 else:
     logger.warning("Frontend static build not found. Only API is active.")

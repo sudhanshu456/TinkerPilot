@@ -4,12 +4,15 @@ All paths default to ~/.tinkerpilot/ for user data.
 Models are managed by Ollama (LLM + embeddings) and auto-downloaded (STT + TTS).
 """
 
+import logging
 import os
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 # Base directories
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent  # TinkerPilot/
@@ -93,7 +96,16 @@ def load_config(config_path: Optional[str] = None) -> AppConfig:
 
     if os.path.exists(config_path):
         with open(config_path, "r") as f:
-            data = yaml.safe_load(f) or {}
+            try:
+                data = yaml.safe_load(f) or {}
+            except yaml.YAMLError as e:
+                logger.warning(
+                    "Failed to parse config file %s: %s. "
+                    "Using default configuration.",
+                    config_path,
+                    e,
+                )
+                data = {}
 
         section_map = {
             "llm": config.llm,
