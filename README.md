@@ -6,7 +6,8 @@ TinkerPilot combines chat-with-docs, meeting transcription, task management, and
 
 ## Features
 
-### 💻 Coding & Development
+### Coding & Debug
+
 | Feature | Description |
 |---------|-------------|
 | **Code Explainer** | Drop in any confusing script or code file and get a clear, concise breakdown of how it works. |
@@ -17,7 +18,8 @@ TinkerPilot combines chat-with-docs, meeting transcription, task management, and
 | **Command Helper** | Describe what you want to do in English, and get the exact shell command to execute. |
 | **File Conversions** | Instantly convert files: CSV ↔ JSON, images ➡️ PDF, base64 encode/decode. |
 
-### 🤝 Meetings & Communication
+### Meetings
+
 | Feature | Description |
 |---------|-------------|
 | **Meeting Transcription** | Record live or upload audio. Get precise transcripts + structured summaries. |
@@ -25,7 +27,8 @@ TinkerPilot combines chat-with-docs, meeting transcription, task management, and
 | **Speech-to-Text** | Record and transcribe your voice directly from the terminal. |
 | **Text-to-Speech** | Convert text into incredibly natural-sounding speech with multiple distinct voices. |
 
-### 📚 Research & Knowledge
+### Local Knowledge
+
 | Feature | Description |
 |---------|-------------|
 | **Chat with Documents** | Ingest PDFs, code, markdown, CSV, JSON. Ask questions with RAG-powered semantic search and precise source citations. |
@@ -33,7 +36,8 @@ TinkerPilot combines chat-with-docs, meeting transcription, task management, and
 | **Obsidian Integration** | Index and search your entire Obsidian markdown vault using semantic AI search. |
 | **Apple Notes Sync** | Automatically search and retrieve notes directly from your macOS Notes app. |
 
-### 📅 Organization & Planning
+### Task Manager & Follow ups
+
 | Feature | Description |
 |---------|-------------|
 | **Daily Digest** | A custom morning/evening briefing combining pending tasks, recent meeting summaries, and notes. |
