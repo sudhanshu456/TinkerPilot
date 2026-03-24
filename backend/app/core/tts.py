@@ -27,6 +27,12 @@ def get_tts_pipeline():
 
     # Enable MPS fallback for Apple Silicon GPU acceleration
     os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+    os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+
+    import warnings
+
+    warnings.filterwarnings("ignore", category=UserWarning, module="torch.nn.modules.rnn")
+    warnings.filterwarnings("ignore", category=FutureWarning, module="torch.nn.utils.weight_norm")
 
     from kokoro import KPipeline
 
