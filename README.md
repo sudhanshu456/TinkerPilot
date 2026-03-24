@@ -112,7 +112,7 @@ The easiest way to install TinkerPilot as a standalone macOS application is via 
 Run this single command in your terminal:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/sudhanshu/tinkerpilot/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/sudhanshu456/tinkerpilot/main/install.sh | bash
 ```
 
 The installer automatically:
@@ -134,7 +134,7 @@ This will start the AI backend and serve the Web UI at **http://localhost:8000**
 If you ever want to completely remove TinkerPilot, its models, and its data, run:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/sudhanshu/tinkerpilot/main/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/sudhanshu456/tinkerpilot/main/uninstall.sh | bash
 ```
 
 ## Local Development
