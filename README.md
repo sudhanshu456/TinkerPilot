@@ -53,7 +53,43 @@ All inference runs locally via Ollama with Apple Metal GPU acceleration. See [do
 - **Node.js 18+**
 - ~3 GB disk space for models
 
-## Quick Start
+## Quick Start (Global Installation)
+
+The easiest way to install TinkerPilot as a standalone macOS application is via the interactive installer.
+
+Run this single command in your terminal:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sudhanshu/tinkerpilot/main/install.sh | bash
+```
+
+*(Note: Replace the URL with your actual GitHub repository URL once published).*
+
+The installer automatically:
+- Installs system dependencies (Homebrew, Python, Node, FFmpeg)
+- Downloads Ollama and the AI models
+- Interactively configures your preferences
+- Builds the UI into a static web app
+- Creates a global `tp` command so you can use TinkerPilot from anywhere
+
+Once installed, simply run:
+
+```bash
+tp serve
+```
+This will start the AI backend and serve the Web UI at **http://localhost:8000**.
+
+### Uninstall
+
+If you ever want to completely remove TinkerPilot, its models, and its data, run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sudhanshu/tinkerpilot/main/uninstall.sh | bash
+```
+
+## Local Development
+
+If you want to edit the code or run TinkerPilot in development mode (with hot-reloading Next.js):
 
 ### 1. Setup (one time)
 
@@ -63,20 +99,13 @@ cd TinkerPilot
 ./scripts/setup.sh
 ```
 
-The setup script automatically:
-- Installs Ollama (if not present)
-- Downloads AI models (~2.3 GB)
-- Creates Python virtual environment and installs dependencies
-- Installs Node.js frontend dependencies
-- Initializes the database
-
-### 2. Run (one command)
+### 2. Run (Development Mode)
 
 ```bash
 ./scripts/start.sh
 ```
 
-This starts Ollama, the backend, and the frontend. Open **http://localhost:3000**.
+This starts Ollama, the Python FastAPI backend, and the Next.js dev server. Open **http://localhost:3000**.
 
 ### 3. Or use Make
 
@@ -115,50 +144,54 @@ cd frontend && npm run dev                # Terminal 3
 
 ## CLI Usage
 
-All CLI commands are available via `python -m cli.main` (from `backend/` with venv activated):
+If you used the global installer, you can run `tp` from any folder. 
+If developing locally, run `cd backend && source .venv/bin/activate && python -m cli.main <cmd>`.
 
 ```bash
 # Chat / RAG
-python -m cli.main ask "how does the auth module work?"
-python -m cli.main ask "explain the database schema" --no-rag
+tp ask "how does the auth module work?"
+tp ask "explain the database schema" --no-rag
 
 # Ingest documents
-python -m cli.main ingest ~/my-project
-python -m cli.main ingest ./report.pdf
+tp ingest ~/my-project
+tp ingest ./report.pdf
 
 # Search
-python -m cli.main search "database migration"
+tp search "database migration"
 
 # Meeting transcription
-python -m cli.main transcribe meeting-recording.wav
+tp transcribe meeting-recording.wav
 
 # Tasks
-python -m cli.main tasks
-python -m cli.main add-task "Fix auth bug" --priority high
-python -m cli.main done 3
+tp tasks
+tp add-task "Fix auth bug" --priority high
+tp done 3
 
 # Code explanation
-python -m cli.main explain deploy.sh
+tp explain deploy.sh
 
 # File conversion
-python -m cli.main convert data.csv --to json
+tp convert data.csv --to json
 
 # Shell command helper
-python -m cli.main cmd "find all python files modified in the last week"
+tp cmd "find all python files modified in the last week"
 
 # Git digest
-python -m cli.main git-digest /path/to/repo
+tp git-digest /path/to/repo
 
 # Text-to-speech
-python -m cli.main speak "Hello from TinkerPilot"
-python -m cli.main speak "Save this" --output speech.wav --voice adam
-python -m cli.main voices
+tp speak "Hello from TinkerPilot"
+tp speak "Save this" --output speech.wav --voice adam
+tp voices
+
+# Check Git repo for leaked API keys/secrets
+tp check-secrets .
 
 # Daily digest
-python -m cli.main digest
+tp digest
 
 # Start server
-python -m cli.main serve
+tp serve
 ```
 
 ## API Endpoints
@@ -199,6 +232,8 @@ See [docs/MODEL_SELECTION.md](docs/MODEL_SELECTION.md) for detailed rationale an
 Create `~/.tinkerpilot/config.yaml` to customize:
 
 ```yaml
+hf_token: "hf_your_token_here..."  # Set this to disable unauthenticated HF warnings
+
 llm:
   model_name: "qwen2.5:3b"  # any model from: ollama list
   temperature: 0.7
