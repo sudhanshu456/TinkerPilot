@@ -44,20 +44,46 @@ mkdir -p "$CONFIG_DIR"
 step "Checking system dependencies..."
 
 # Python
-if ! command -v python3 &> /dev/null; then
-    warn "Python 3 is missing."
+PYTHON_CMD=""
+check_python_version() {
+    local cmd="$1"
+    if command -v "$cmd" &> /dev/null; then
+        local version=$("$cmd" -c 'import sys; print(".".join(map(str, sys.version_info[:2])))' 2>/dev/null || true)
+        if [[ "$version" == "3.10" || "$version" == "3.11" || "$version" == "3.12" ]]; then
+            echo "$cmd"
+            return 0
+        fi
+    fi
+    return 0
+}
+
+for cmd in python3.12 python3.11 python3.10 python3 python; do
+    VALID_PY=$(check_python_version "$cmd" || true)
+    if [ -n "$VALID_PY" ]; then
+        PYTHON_CMD="$VALID_PY"
+        break
+    fi
+done
+
+if [ -z "$PYTHON_CMD" ]; then
+    warn "A compatible Python version (3.10 - 3.12) was not found."
     if [ "$PKG_MGR" == "brew" ]; then
-        info "Installing Python 3 via Homebrew..."
+        info "Installing Python 3.12 via Homebrew..."
         brew install python@3.12
+        PYTHON_CMD="$(brew --prefix python@3.12)/bin/python3.12"
     elif [ "$PKG_MGR" == "apt" ]; then
         info "Installing Python 3 and venv via APT..."
         sudo apt-get update && sudo apt-get install -y python3 python3-venv python3-pip
+        PYTHON_CMD="python3"
     elif [ "$PKG_MGR" == "yum" ]; then
         info "Installing Python 3 via YUM..."
         sudo yum install -y python3
+        PYTHON_CMD="python3"
     else
-        error "Please manually install Python 3.10+ before continuing."
+        error "Please manually install Python 3.10, 3.11, or 3.12 before continuing."
     fi
+else
+    info "Found compatible Python: $PYTHON_CMD"
 fi
 
 # espeak-ng (TTS)
@@ -184,10 +210,11 @@ fi
 
 step "Setting up backend..."
 cd "$INSTALL_DIR/backend"
-python3 -m venv .venv
+rm -rf .venv
+$PYTHON_CMD -m venv .venv
 source .venv/bin/activate
-pip install --upgrade pip -q
-pip install -e . -q
+pip install --default-timeout=100 --upgrade pip
+pip install --default-timeout=100 -e .
 info "Python environment ready."
 
 step "Setting up frontend UI..."
@@ -214,7 +241,7 @@ npm run build --silent
 info "Frontend built as static app."
 
 cd "$INSTALL_DIR/backend"
-python -c "
+./.venv/bin/python -c "
 import sys; sys.path.insert(0, '.')
 from app.config import ensure_directories
 from app.db.sqlite import init_db

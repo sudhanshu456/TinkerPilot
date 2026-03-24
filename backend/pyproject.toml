@@ -15,7 +15,6 @@ dependencies = [
     # API
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.0",
-    "websockets>=12.0",
     "python-multipart>=0.0.9",
     # CLI
     "typer[all]>=0.12.0",
@@ -29,9 +28,7 @@ dependencies = [
     "sounddevice>=0.5.0",
     "soundfile>=0.12.0",
     # File utilities
-    "Pillow>=10.0.0",
     "img2pdf>=0.5.0",
-    "watchdog>=4.0.0",
     # General
     "pyyaml>=6.0",
     "httpx>=0.27.0",
