@@ -94,23 +94,29 @@ async def unified_search(req: SearchRequest):
                 for m in matched[: req.limit]
             ]
 
-    # 4. Apple Notes search
+    # 4. Apple Notes search (macOS only)
     if "notes" in req.scope:
-        try:
-            from app.integrations.apple_notes import search_notes
+        from app.config import get_config
+        cfg = get_config()
+        if cfg.integrations.enable_apple_notes:
+            try:
+                from app.integrations.apple_notes import search_notes
 
-            results["notes"] = search_notes(req.query, limit=req.limit)
-        except Exception as e:
-            logger.debug(f"Notes search not available: {e}")
+                results["notes"] = search_notes(req.query, limit=req.limit)
+            except Exception as e:
+                logger.debug(f"Notes search not available: {e}")
+                results["notes"] = []
+        else:
             results["notes"] = []
 
     return {"query": req.query, "results": results}
 
 
 @router.get("/search")
-async def quick_search(q: str, limit: int = 10):
-    """Quick search endpoint (GET for simplicity)."""
-    req = SearchRequest(query=q, limit=limit)
+async def quick_search(q: str, limit: int = 10, file_types: Optional[str] = None):
+    """Quick search endpoint (GET for simplicity). file_types is comma-separated."""
+    ft = [t.strip() for t in file_types.split(",") if t.strip()] if file_types else None
+    req = SearchRequest(query=q, limit=limit, file_types=ft)
     return await unified_search(req)
 
 

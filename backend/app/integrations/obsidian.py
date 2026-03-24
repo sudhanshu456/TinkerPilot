@@ -115,7 +115,7 @@ def search_notes_keyword(
     return results
 
 
-def index_vault(vault_path: Optional[str] = None, collection_name: str = "obsidian") -> dict:
+def index_vault(vault_path: Optional[str] = None, collection_name: Optional[str] = None) -> dict:
     """Index all Obsidian notes into the RAG pipeline."""
     from app.core.rag import ingest_file
 

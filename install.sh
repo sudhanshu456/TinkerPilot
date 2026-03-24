@@ -233,7 +233,7 @@ fi
 
 $PYTHON_CMD -m venv .venv
 source .venv/bin/activate
-pip install --default-timeout=100 --upgrade pip
+# pip install --default-timeout=100 --upgrade pip
 
 # Pre-install minimal ML runtime before `pip install -e .` to prevent heavy
 # transitive dependencies (CUDA PyTorch ~3GB of nvidia-* libs, torchaudio,

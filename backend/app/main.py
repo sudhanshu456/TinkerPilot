@@ -27,12 +27,28 @@ async def lifespan(app: FastAPI):
     ensure_directories()
     init_db()
 
-    # Pre-warm the daily digest in the background so the UI loads instantly
+    config = get_config()
+
     import threading
+
+    # Auto-index Obsidian vault if configured
+    if config.integrations.obsidian_vault_path:
+        def _index_obsidian():
+            try:
+                from app.integrations.obsidian import index_vault
+                logger.info(f"Auto-indexing Obsidian vault: {config.integrations.obsidian_vault_path}")
+                result = index_vault(config.integrations.obsidian_vault_path)
+                logger.info(
+                    f"Obsidian indexing complete: {result.get('indexed', 0)} files, "
+                    f"{result.get('total_chunks', 0)} chunks"
+                )
+            except Exception as e:
+                logger.error(f"Obsidian auto-index failed: {e}")
+        threading.Thread(target=_index_obsidian, daemon=True).start()
+
+    # Pre-warm the daily digest in the background so the UI loads instantly
     from app.api.digest import prewarm_digest
     threading.Thread(target=prewarm_digest, daemon=True).start()
-
-    config = get_config()
     logger.info(f"Server config: host={config.host}, port={config.port}")
     logger.info(f"LLM model: {config.llm.model_name} (via Ollama)")
     logger.info(f"Embedding model: {config.embedding.model_name} (via Ollama)")

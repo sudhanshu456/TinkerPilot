@@ -1,20 +1,58 @@
 'use client';
 
 import { useState } from 'react';
-import ReactMarkdown from 'react-markdown';
+
+interface DocChunk {
+  text: string;
+  filename: string;
+  filepath: string;
+  file_type: string;
+  relevance: number;
+  line_start?: number;
+}
+
+interface GroupedDoc {
+  filename: string;
+  filepath: string;
+  file_type: string;
+  bestRelevance: number;
+  chunks: DocChunk[];
+}
+
+function groupDocuments(docs: DocChunk[]): GroupedDoc[] {
+  const map = new Map<string, GroupedDoc>();
+  for (const doc of docs) {
+    const key = doc.filepath || doc.filename;
+    if (!map.has(key)) {
+      map.set(key, {
+        filename: doc.filename,
+        filepath: doc.filepath,
+        file_type: doc.file_type,
+        bestRelevance: doc.relevance,
+        chunks: [],
+      });
+    }
+    const group = map.get(key)!;
+    group.chunks.push(doc);
+    if (doc.relevance > group.bestRelevance) group.bestRelevance = doc.relevance;
+  }
+  return Array.from(map.values()).sort((a, b) => b.bestRelevance - a.bestRelevance);
+}
 
 export default function SearchPage() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [expandedDoc, setExpandedDoc] = useState<string | null>(null);
 
   const doSearch = async () => {
     if (!query.trim()) return;
     setLoading(true);
     setError('');
+    setExpandedDoc(null);
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}&limit=10`);
+      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}&limit=20`);
       const data = await res.json();
       setResults(data.results);
     } catch (e: any) {
@@ -24,9 +62,9 @@ export default function SearchPage() {
     }
   };
 
-  const totalResults = results
-    ? (results.documents?.length || 0) + (results.tasks?.length || 0) + (results.meetings?.length || 0)
-    : 0;
+  const grouped = results?.documents ? groupDocuments(results.documents) : [];
+  const totalResults =
+    grouped.length + (results?.tasks?.length || 0) + (results?.meetings?.length || 0);
 
   return (
     <div>
@@ -66,24 +104,69 @@ export default function SearchPage() {
             {totalResults} results for &quot;{query}&quot;
           </p>
 
-          {/* Documents */}
-          {results.documents?.length > 0 && (
-            <ResultSection title="Documents" count={results.documents.length}>
-              {results.documents.map((doc: any, i: number) => (
-                <div key={i} style={resultCard}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                    <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--accent)' }}>
-                      {doc.filename}{doc.line_start ? `:${doc.line_start}` : ''}
-                    </span>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                      relevance: {doc.relevance}
-                    </span>
+          {/* Documents — grouped by file */}
+          {grouped.length > 0 && (
+            <ResultSection title="Documents" count={grouped.length}>
+              {grouped.map((doc) => {
+                const isExpanded = expandedDoc === (doc.filepath || doc.filename);
+                return (
+                  <div key={doc.filepath || doc.filename} style={resultCard}>
+                    {/* Header row — clickable to expand */}
+                    <div
+                      onClick={() => setExpandedDoc(isExpanded ? null : (doc.filepath || doc.filename))}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                        <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--accent)' }}>
+                          {doc.filename}
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: '0.5rem' }}>
+                            {doc.chunks.length} matching section{doc.chunks.length > 1 ? 's' : ''}
+                          </span>
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                          relevance: {doc.bestRelevance}
+                        </span>
+                      </div>
+                      {/* File path */}
+                      {doc.filepath && (
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.4rem', fontFamily: 'monospace' }}>
+                          {doc.filepath}
+                        </div>
+                      )}
+                      {/* Preview of best chunk when collapsed */}
+                      {!isExpanded && (
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
+                          {doc.chunks[0].text}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Expanded: show all chunks */}
+                    {isExpanded && (
+                      <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {doc.chunks.map((chunk, ci) => (
+                          <div key={ci} style={{
+                            background: 'var(--bg-tertiary)', borderRadius: '6px',
+                            padding: '0.6rem 0.75rem', borderLeft: '3px solid var(--accent)',
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                {chunk.line_start ? `Line ${chunk.line_start}` : `Section ${ci + 1}`}
+                              </span>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                relevance: {chunk.relevance}
+                              </span>
+                            </div>
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-primary)', lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap' }}>
+                              {chunk.text}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                    {doc.text}
-                  </p>
-                </div>
-              ))}
+                );
+              })}
             </ResultSection>
           )}
 

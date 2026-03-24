@@ -124,7 +124,7 @@ export function createChatWebSocket(
   onDone: (fullResponse: string) => void,
   onError: (error: string) => void,
 ): WebSocket {
-  const ws = new WebSocket(`ws://127.0.0.1:8000/api/ws/chat`);
+  const ws = new WebSocket(`ws://${window.location.hostname}:8000/api/ws/chat`);
 
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data);

@@ -69,7 +69,7 @@ info "Ollama running"
 info "Starting backend on http://localhost:8000..."
 cd "$BACKEND_DIR"
 source .venv/bin/activate
-python -m cli.main serve &
+python -m cli.main serve --no-open &
 BACKEND_PID=$!
 
 # Wait for backend to be ready
@@ -93,6 +93,13 @@ npm run dev &
 FRONTEND_PID=$!
 
 sleep 3
+
+# Open browser to the frontend dev server
+if command -v xdg-open &> /dev/null; then
+    xdg-open http://localhost:3000 &> /dev/null &
+elif command -v open &> /dev/null; then
+    open http://localhost:3000
+fi
 
 echo ""
 echo "============================================"

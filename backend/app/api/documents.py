@@ -5,6 +5,8 @@ Upload, ingest, list, and delete documents for RAG.
 
 import logging
 import shutil
+import threading
+import uuid
 from pathlib import Path
 from typing import Optional
 
@@ -19,6 +21,9 @@ router = APIRouter(tags=["documents"])
 
 UPLOAD_DIR = DATA_DIR / "uploads"
 
+# In-memory store for background ingestion jobs
+_ingest_jobs: dict[str, dict] = {}
+
 
 class IngestPathRequest(BaseModel):
     path: str
@@ -26,12 +31,33 @@ class IngestPathRequest(BaseModel):
     collection: Optional[str] = None
 
 
+def _run_ingest_job(job_id: str, path: Path, recursive: bool, collection: Optional[str]):
+    """Background worker for ingestion."""
+    try:
+        if path.is_file():
+            result = ingest_file(str(path), collection_name=collection)
+            _ingest_jobs[job_id].update(
+                status="done", results=[result],
+                total_files=1, total_chunks=result.get("chunk_count", 0),
+            )
+        elif path.is_dir():
+            results = ingest_directory(str(path), recursive=recursive, collection_name=collection)
+            _ingest_jobs[job_id].update(
+                status="done", results=results,
+                total_files=len(results),
+                total_chunks=sum(r.get("chunk_count", 0) for r in results),
+            )
+    except Exception as e:
+        logger.error(f"Background ingest failed for {path}: {e}")
+        _ingest_jobs[job_id].update(status="error", error=str(e))
+
+
 @router.post("/documents/upload")
 async def upload_and_ingest(
     file: UploadFile = File(...),
     collection: Optional[str] = Form(None),
 ):
-    """Upload a file and ingest it into the RAG pipeline."""
+    """Upload a file and ingest it into the RAG pipeline (background)."""
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
     dest = UPLOAD_DIR / file.filename
@@ -39,39 +65,41 @@ async def upload_and_ingest(
         content = await file.read()
         f.write(content)
 
-    try:
-        result = ingest_file(str(dest), collection_name=collection)
-        return {"status": "success", **result}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    job_id = str(uuid.uuid4())[:8]
+    _ingest_jobs[job_id] = {"status": "running", "path": str(dest)}
+    threading.Thread(
+        target=_run_ingest_job, args=(job_id, dest, False, collection), daemon=True,
+    ).start()
+
+    return {"status": "accepted", "job_id": job_id, "filename": file.filename}
 
 
 @router.post("/documents/ingest")
 async def ingest_path(req: IngestPathRequest):
-    """Ingest a local file or directory by path."""
+    """Ingest a local file or directory by path (background)."""
     path = Path(req.path).expanduser().resolve()
 
     if not path.exists():
         raise HTTPException(status_code=404, detail=f"Path not found: {req.path}")
 
-    try:
-        if path.is_file():
-            result = ingest_file(str(path), collection_name=req.collection)
-            return {"status": "success", "results": [result]}
-        elif path.is_dir():
-            results = ingest_directory(
-                str(path), recursive=req.recursive, collection_name=req.collection
-            )
-            return {
-                "status": "success",
-                "results": results,
-                "total_files": len(results),
-                "total_chunks": sum(r.get("chunk_count", 0) for r in results),
-            }
-        else:
-            raise HTTPException(status_code=400, detail="Path is neither file nor directory")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    job_id = str(uuid.uuid4())[:8]
+    _ingest_jobs[job_id] = {"status": "running", "path": str(path)}
+    threading.Thread(
+        target=_run_ingest_job,
+        args=(job_id, path, req.recursive, req.collection),
+        daemon=True,
+    ).start()
+
+    return {"status": "accepted", "job_id": job_id, "path": str(path)}
+
+
+@router.get("/documents/ingest/{job_id}")
+async def ingest_status(job_id: str):
+    """Check the status of a background ingestion job."""
+    job = _ingest_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return {"job_id": job_id, **job}
 
 
 @router.get("/documents")

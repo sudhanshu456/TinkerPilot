@@ -142,29 +142,29 @@ export default function ChatPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 3rem)' }}>
       {/* Header */}
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         marginBottom: '1rem', flexShrink: 0,
-      }}>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Chat</h1>
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={useRag}
-              onChange={(e) => setUseRag(e.target.checked)}
-              style={{ accentColor: 'var(--accent)' }}
-            />
-            Search docs (RAG)
-          </label>
-          <button onClick={clearHistory} style={{
-            background: 'var(--bg-tertiary)', border: '1px solid var(--border)',
-            color: 'var(--text-secondary)', padding: '0.4rem 0.8rem',
-            borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem',
-          }}>
-            Clear
-          </button>
-        </div>
+        }}>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Chat</h1>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={useRag}
+                onChange={(e) => setUseRag(e.target.checked)}
+                style={{ accentColor: 'var(--accent)' }}
+              />
+              Search docs (RAG)
+            </label>
+            <button onClick={clearHistory} style={{
+              background: 'var(--bg-tertiary)', border: '1px solid var(--border)',
+              color: 'var(--text-secondary)', padding: '0.4rem 0.8rem',
+              borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem',
+            }}>
+              Clear
+            </button>
+          </div>
       </div>
 
       {/* Messages */}

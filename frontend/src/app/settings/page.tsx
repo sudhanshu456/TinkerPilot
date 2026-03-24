@@ -21,10 +21,35 @@ export default function SettingsPage() {
       .catch(() => {});
   }, []);
 
+  const pollJob = async (jobId: string) => {
+    const poll = async (): Promise<void> => {
+      try {
+        const res = await fetch(`/api/documents/ingest/${jobId}`);
+        const job = await res.json();
+        if (job.status === 'done') {
+          setIngestResult(`Ingested ${job.total_files} files, ${job.total_chunks} chunks`);
+          setIngesting(false);
+          const docsRes = await fetch('/api/documents');
+          const docsData = await docsRes.json();
+          setDocs(docsData.documents || []);
+        } else if (job.status === 'error') {
+          setIngestResult(`Error: ${job.error}`);
+          setIngesting(false);
+        } else {
+          setTimeout(poll, 1000);
+        }
+      } catch {
+        setIngestResult('Error: lost connection to server');
+        setIngesting(false);
+      }
+    };
+    poll();
+  };
+
   const handleIngest = async () => {
     if (!ingestPath.trim()) return;
     setIngesting(true);
-    setIngestResult('');
+    setIngestResult('Ingesting in background...');
     try {
       const res = await fetch('/api/documents/ingest', {
         method: 'POST',
@@ -32,18 +57,14 @@ export default function SettingsPage() {
         body: JSON.stringify({ path: ingestPath, recursive: true }),
       });
       const data = await res.json();
-      if (data.status === 'success') {
-        setIngestResult(`Ingested ${data.total_files} files, ${data.total_chunks} chunks`);
-        // Reload docs
-        const docsRes = await fetch('/api/documents');
-        const docsData = await docsRes.json();
-        setDocs(docsData.documents || []);
+      if (data.status === 'accepted') {
+        pollJob(data.job_id);
       } else {
         setIngestResult(`Error: ${data.detail || 'Unknown error'}`);
+        setIngesting(false);
       }
     } catch (e: any) {
       setIngestResult(`Error: ${e.message}`);
-    } finally {
       setIngesting(false);
     }
   };
@@ -57,18 +78,21 @@ export default function SettingsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     setIngesting(true);
+    setIngestResult(`Uploading ${file.name}...`);
     const form = new FormData();
     form.append('file', file);
     try {
       const res = await fetch('/api/documents/upload', { method: 'POST', body: form });
       const data = await res.json();
-      setIngestResult(`Uploaded ${data.filename}: ${data.chunk_count} chunks`);
-      const docsRes = await fetch('/api/documents');
-      const docsData = await docsRes.json();
-      setDocs(docsData.documents || []);
+      if (data.status === 'accepted') {
+        setIngestResult(`Indexing ${data.filename} in background...`);
+        pollJob(data.job_id);
+      } else {
+        setIngestResult(`Error: ${data.detail || 'Unknown error'}`);
+        setIngesting(false);
+      }
     } catch (e: any) {
       setIngestResult(`Error: ${e.message}`);
-    } finally {
       setIngesting(false);
     }
   };

@@ -40,6 +40,8 @@ def _get_briefing_type():
 
 def _gather_raw_data(include_slow: bool = False):
     """Gathers the fast, structured database information instantly."""
+    from app.config import get_config
+    config = get_config()
     sections = {}
 
     # 1. Pending tasks
@@ -75,9 +77,9 @@ def _gather_raw_data(include_slow: bool = False):
                 }
             )
 
-    # 3. Apple Notes (Slow osascript call)
+    # 3. Apple Notes (Slow osascript call — macOS only)
     notes = []
-    if include_slow:
+    if include_slow and config.integrations.enable_apple_notes:
         try:
             from app.integrations.apple_notes import get_notes
             notes = get_notes(limit=5)

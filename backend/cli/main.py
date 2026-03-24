@@ -679,6 +679,7 @@ def voices():
 def serve(
     host: str = typer.Option("127.0.0.1", "--host", "-h"),
     port: int = typer.Option(8000, "--port", "-p"),
+    no_open: bool = typer.Option(False, "--no-open", help="Don't auto-open browser"),
 ):
     """Start the TinkerPilot API server."""
     import uvicorn
@@ -687,12 +688,13 @@ def serve(
     import time
     import socket
 
-    def launch_browser():
-        time.sleep(1.5)  # Let Uvicorn boot up
-        open_host = "127.0.0.1" if host == "0.0.0.0" else host
-        webbrowser.open(f"http://{open_host}:{port}")
+    if not no_open:
+        def launch_browser():
+            time.sleep(1.5)  # Let Uvicorn boot up
+            open_host = "localhost" if host in ("0.0.0.0", "127.0.0.1") else host
+            webbrowser.open(f"http://{open_host}:{port}")
 
-    threading.Thread(target=launch_browser, daemon=True).start()
+        threading.Thread(target=launch_browser, daemon=True).start()
 
     console.print(f"[bold cyan]Starting TinkerPilot server at http://{host}:{port}[/bold cyan]")
     uvicorn.run("app.main:app", host=host, port=port, reload=False)
