@@ -82,14 +82,16 @@ from app.config import PROJECT_ROOT
 
 frontend_dist = os.path.join(PROJECT_ROOT, "frontend", "out")
 if os.path.exists(frontend_dist):
-    app.mount("/_next", StaticFiles(directory=os.path.join(frontend_dist, "_next")), name="next_assets")
-    
+    next_assets_dir = os.path.join(frontend_dist, "_next")
+    if os.path.exists(next_assets_dir):
+        app.mount("/_next", StaticFiles(directory=next_assets_dir), name="next_assets")
+
     @app.middleware("http")
     async def fallback_to_index(request, call_next):
         response = await call_next(request)
         if response.status_code == 404 and not request.url.path.startswith("/api"):
             path = request.url.path.strip("/")
-            
+
             if not path:
                 path = "index.html"
             elif not path.endswith(".html"):
@@ -97,7 +99,7 @@ if os.path.exists(frontend_dist):
                     path = f"{path}.html"
                 elif not os.path.exists(os.path.join(frontend_dist, path)):
                     path = "index.html"
-            
+
             filepath = os.path.join(frontend_dist, path)
             if os.path.exists(filepath):
                 return FileResponse(filepath)
