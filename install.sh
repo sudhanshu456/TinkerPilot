@@ -119,7 +119,7 @@ if [ -d "$INSTALL_DIR" ]; then
     git pull origin main --quiet || true
 else
     info "Cloning to $INSTALL_DIR..."
-    git clone https://github.com/sudhanshu/tinkerpilot.git "$INSTALL_DIR" --quiet
+    git clone https://github.com/sudhanshu456/tinkerpilot.git "$INSTALL_DIR" --quiet
     cd "$INSTALL_DIR"
 fi
 
