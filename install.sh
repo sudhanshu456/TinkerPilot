@@ -132,8 +132,11 @@ if [ ! -f "$CONFIG_FILE" ]; then
     
     read -p "1. Enter your Hugging Face Token (or press Enter to skip): " HF_TOKEN
     
+    echo "2. Where do you keep your local Markdown notes? (e.g., Obsidian/Logseq vault)"
+    read -p "   Enter full path (or press Enter to skip): " OBSIDIAN_PATH
+
     if [ "$(uname)" == "Darwin" ]; then
-        echo "2. Do you want to enable Apple Notes indexing? (y/N): " 
+        echo "3. Do you want to enable Apple Notes indexing? (y/N): " 
         read ENABLE_NOTES
         if [[ "$ENABLE_NOTES" =~ ^[Yy]$ ]]; then
             NOTES_BOOL="true"
@@ -142,6 +145,14 @@ if [ ! -f "$CONFIG_FILE" ]; then
         fi
     else
         NOTES_BOOL="false" # Disable Apple Notes inherently on Linux
+    fi
+
+    # Expand tilde in path if provided
+    OBSIDIAN_PATH="${OBSIDIAN_PATH/#\~/$HOME}"
+    if [ -n "$OBSIDIAN_PATH" ]; then
+        OBSIDIAN_YAML="obsidian_vault_path: \"$OBSIDIAN_PATH\""
+    else
+        OBSIDIAN_YAML="# obsidian_vault_path: \"~/Documents/ObsidianVault\""
     fi
 
     echo "Generating config file at $CONFIG_FILE..."
@@ -155,7 +166,7 @@ llm:
 embedding:
   model_name: "qwen3-embedding:0.6b"
 
-stt:
+whisper:
   model_size: small
   language: en
 
@@ -164,6 +175,7 @@ rag:
   top_k: 5
 
 integrations:
+  ${OBSIDIAN_YAML}
   enable_apple_notes: ${NOTES_BOOL}
 EOL
 else
