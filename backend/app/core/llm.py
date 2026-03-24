@@ -6,7 +6,7 @@ Model-agnostic: works with any model available in Ollama.
 
 import json
 import logging
-from typing import Generator, Optional
+from typing import Generator, Optional, Union
 
 import httpx
 
@@ -14,17 +14,24 @@ from app.config import get_config
 
 logger = logging.getLogger(__name__)
 
-OLLAMA_BASE = "http://localhost:11434"
+DEFAULT_SYSTEM_PROMPT = (
+    "You are TinkerPilot, a helpful local AI assistant for developers. "
+    "Be concise and accurate."
+)
+
+
+def _ollama_url(path: str) -> str:
+    """Build an Ollama API URL from config."""
+    return f"{get_config().ollama_base_url}{path}"
 
 
 def _check_ollama():
     """Check if Ollama is running and the model is available."""
     config = get_config()
     try:
-        r = httpx.get(f"{OLLAMA_BASE}/api/tags", timeout=5)
+        r = httpx.get(_ollama_url("/api/tags"), timeout=5)
         r.raise_for_status()
         models = [m["name"] for m in r.json().get("models", [])]
-        # Check if our model (or a variant of it) is available
         model = config.llm.model_name
         if not any(model in m for m in models):
             raise RuntimeError(
@@ -41,8 +48,7 @@ def _check_ollama():
 def get_llm():
     """Verify Ollama is ready. Returns the model name."""
     _check_ollama()
-    config = get_config()
-    return config.llm.model_name
+    return get_config().llm.model_name
 
 
 def unload_llm():
@@ -50,25 +56,35 @@ def unload_llm():
     pass
 
 
-def generate(
-    prompt: str,
-    system_prompt: str = "You are TinkerPilot, a helpful local AI assistant for developers. Be concise and accurate.",
-    max_tokens: Optional[int] = None,
-    temperature: Optional[float] = None,
-    stop: Optional[list[str]] = None,
-) -> str:
-    """Generate a complete response (non-streaming)."""
-    config = get_config()
-
+def _build_messages(
+    prompt_or_messages: Union[str, list[dict]],
+    system_prompt: Optional[str],
+) -> list[dict]:
+    """Normalise a single prompt string or a messages list into a full messages list."""
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
-    messages.append({"role": "user", "content": prompt})
+    if isinstance(prompt_or_messages, str):
+        messages.append({"role": "user", "content": prompt_or_messages})
+    else:
+        messages.extend(prompt_or_messages)
+    return messages
 
+
+def _build_payload(
+    messages: list[dict],
+    *,
+    streaming: bool,
+    max_tokens: Optional[int] = None,
+    temperature: Optional[float] = None,
+    stop: Optional[list[str]] = None,
+) -> dict:
+    """Build the Ollama /api/chat payload. Single source of truth for options."""
+    config = get_config()
     payload = {
         "model": config.llm.model_name,
         "messages": messages,
-        "stream": False,
+        "stream": streaming,
         "options": {
             "temperature": temperature or config.llm.temperature,
             "num_predict": max_tokens or config.llm.max_tokens,
@@ -78,88 +94,54 @@ def generate(
     }
     if stop:
         payload["options"]["stop"] = stop
-
-    r = httpx.post(
-        f"{OLLAMA_BASE}/api/chat",
-        json=payload,
-        timeout=120,
-    )
-    r.raise_for_status()
-    return r.json()["message"]["content"]
+    return payload
 
 
-def generate_with_history(
-    messages: list[dict],
-    system_prompt: str = "You are TinkerPilot, a helpful local AI assistant for developers. Be concise and accurate.",
+def generate(
+    prompt_or_messages: Union[str, list[dict]],
+    system_prompt: str = DEFAULT_SYSTEM_PROMPT,
     max_tokens: Optional[int] = None,
     temperature: Optional[float] = None,
     stop: Optional[list[str]] = None,
 ) -> str:
-    """Generate a response given a full conversation history."""
-    config = get_config()
+    """
+    Generate a complete response (non-streaming).
 
-    full_messages = []
-    if system_prompt:
-        full_messages.append({"role": "system", "content": system_prompt})
-    full_messages.extend(messages)
-
-    payload = {
-        "model": config.llm.model_name,
-        "messages": full_messages,
-        "stream": False,
-        "options": {
-            "temperature": temperature or config.llm.temperature,
-            "num_predict": max_tokens or config.llm.max_tokens,
-            "top_p": config.llm.top_p,
-            "repeat_penalty": config.llm.repeat_penalty,
-        },
-    }
-    if stop:
-        payload["options"]["stop"] = stop
-
-    r = httpx.post(
-        f"{OLLAMA_BASE}/api/chat",
-        json=payload,
-        timeout=120,
+    Accepts either a plain prompt string or a conversation-history messages list.
+    """
+    messages = _build_messages(prompt_or_messages, system_prompt)
+    payload = _build_payload(
+        messages, streaming=False, max_tokens=max_tokens,
+        temperature=temperature, stop=stop,
     )
+    r = httpx.post(_ollama_url("/api/chat"), json=payload, timeout=120)
     r.raise_for_status()
     return r.json()["message"]["content"]
+
+
+# Backward-compatible alias
+generate_with_history = generate
 
 
 def stream(
-    prompt: str,
-    system_prompt: str = "You are TinkerPilot, a helpful local AI assistant for developers. Be concise and accurate.",
+    prompt_or_messages: Union[str, list[dict]],
+    system_prompt: str = DEFAULT_SYSTEM_PROMPT,
     max_tokens: Optional[int] = None,
     temperature: Optional[float] = None,
     stop: Optional[list[str]] = None,
 ) -> Generator[str, None, None]:
-    """Stream response tokens one at a time."""
-    config = get_config()
+    """
+    Stream response tokens one at a time.
 
-    messages = []
-    if system_prompt:
-        messages.append({"role": "system", "content": system_prompt})
-    messages.append({"role": "user", "content": prompt})
-
-    payload = {
-        "model": config.llm.model_name,
-        "messages": messages,
-        "stream": True,
-        "options": {
-            "temperature": temperature or config.llm.temperature,
-            "num_predict": max_tokens or config.llm.max_tokens,
-            "top_p": config.llm.top_p,
-            "repeat_penalty": config.llm.repeat_penalty,
-        },
-    }
-    if stop:
-        payload["options"]["stop"] = stop
-
+    Accepts either a plain prompt string or a conversation-history messages list.
+    """
+    messages = _build_messages(prompt_or_messages, system_prompt)
+    payload = _build_payload(
+        messages, streaming=True, max_tokens=max_tokens,
+        temperature=temperature, stop=stop,
+    )
     with httpx.stream(
-        "POST",
-        f"{OLLAMA_BASE}/api/chat",
-        json=payload,
-        timeout=120,
+        "POST", _ollama_url("/api/chat"), json=payload, timeout=120,
     ) as r:
         for line in r.iter_lines():
             if line:
@@ -169,44 +151,5 @@ def stream(
                     yield content
 
 
-def stream_with_history(
-    messages: list[dict],
-    system_prompt: str = "You are TinkerPilot, a helpful local AI assistant for developers. Be concise and accurate.",
-    max_tokens: Optional[int] = None,
-    temperature: Optional[float] = None,
-    stop: Optional[list[str]] = None,
-) -> Generator[str, None, None]:
-    """Stream response tokens given a full conversation history."""
-    config = get_config()
-
-    full_messages = []
-    if system_prompt:
-        full_messages.append({"role": "system", "content": system_prompt})
-    full_messages.extend(messages)
-
-    payload = {
-        "model": config.llm.model_name,
-        "messages": full_messages,
-        "stream": True,
-        "options": {
-            "temperature": temperature or config.llm.temperature,
-            "num_predict": max_tokens or config.llm.max_tokens,
-            "top_p": config.llm.top_p,
-            "repeat_penalty": config.llm.repeat_penalty,
-        },
-    }
-    if stop:
-        payload["options"]["stop"] = stop
-
-    with httpx.stream(
-        "POST",
-        f"{OLLAMA_BASE}/api/chat",
-        json=payload,
-        timeout=120,
-    ) as r:
-        for line in r.iter_lines():
-            if line:
-                data = json.loads(line)
-                content = data.get("message", {}).get("content", "")
-                if content:
-                    yield content
+# Backward-compatible alias
+stream_with_history = stream

@@ -41,11 +41,6 @@ class STTConfig:
 
     model_size: str = "small"  # tiny, small, medium
     language: str = "en"
-    # Legacy keys kept for backward compatibility
-    device: str = "cpu"
-    compute_type: str = "int8"
-    beam_size: int = 5
-    vad_filter: bool = True
 
 
 @dataclass

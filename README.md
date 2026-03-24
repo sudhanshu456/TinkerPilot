@@ -91,19 +91,39 @@ graph TD
 ### Technical Stack & Decisions
 * **Frontend:** Next.js (React) configured for `output: export`. Compiles to static HTML/JS for zero-dependency hosting.
 * **Backend:** Python FastAPI. Fast, modern, and perfectly suited for streaming AI chunks via WebSockets.
-* **Local AI:** Ollama running the Qwen family. Hand-selected for having the best performance-to-size ratio on Apple Silicon (Metal GPU).
+* **Local AI:** Ollama running the Qwen family. Hand-selected for having the best performance-to-size ratio on consumer hardware (Apple Metal GPU on macOS, CPU/CUDA on Linux).
 * **Audio AI:** Moonshine Voice (STT) and Kokoro (TTS) running natively via PyTorch. Avoids heavy C++ compilation steps while maintaining real-time streaming latency.
 * **Data Storage:** SQLite (structured data) and ChromaDB (vector embeddings). No background database daemons required.
 
-All inference runs locally via Ollama with Apple Metal GPU acceleration. See [docs/MODEL_SELECTION.md](docs/MODEL_SELECTION.md) for detailed model justification.
+All inference runs locally via Ollama with hardware-appropriate acceleration (Metal on macOS, CUDA on Linux with NVIDIA GPU, CPU otherwise). See [docs/MODEL_SELECTION.md](docs/MODEL_SELECTION.md) for detailed model justification.
 
 ## Requirements
 
-- **macOS** with Apple Silicon (M1/M2/M3/M4) — 8GB RAM minimum, 16GB+ recommended for best performance
-- **Homebrew** (package manager)
-- **Python 3.10+**
-- **Node.js 18+**
-- ~3 GB disk space for models
+| | macOS | Linux |
+|---|---|---|
+| **Hardware** | Apple Silicon (M1+) — 8 GB RAM min, 16 GB+ recommended | x86_64 — 8 GB RAM min; NVIDIA GPU optional (CUDA auto-detected) |
+| **OS tooling** | Homebrew | apt (Debian/Ubuntu) or yum (RHEL/Fedora) |
+| **Python** | 3.10 – 3.12 | 3.10 – 3.12 |
+| **Node.js** | 18+ | 18+ |
+| **Disk** | ~3 GB for AI models | ~3 GB (CPU-only PyTorch) or ~5 GB (CUDA PyTorch) |
+
+### Python Dependencies (installed automatically)
+
+| Package | Purpose |
+|---|---|
+| `fastapi`, `uvicorn` | Backend API server |
+| `moonshine-voice` | Speech-to-text (pulls PyTorch) |
+| `kokoro` | Text-to-speech (pulls PyTorch) |
+| `chromadb` | Vector database for RAG |
+| `sqlmodel`, `aiosqlite` | SQLite ORM + async driver |
+| `PyMuPDF`, `python-docx` | PDF and DOCX parsing |
+| `sounddevice`, `soundfile` | Audio I/O |
+| `typer`, `rich` | CLI framework |
+| `httpx` | HTTP client (Ollama communication) |
+| `pyyaml` | Config file parsing |
+| `img2pdf` | Image-to-PDF conversion |
+
+> **Note:** The installer pre-installs only the minimal ML runtime needed for your platform — just `torch` (for TTS) and `onnxruntime` (for STT). Unnecessary transitive dependencies like `torchaudio`, `torchvision`, and `onnxruntime-gpu` are avoided. On Linux without an NVIDIA GPU, CPU-only PyTorch (~1 GB) is used instead of the default CUDA build (~2.5 GB).
 
 ## Quick Start (Global Installation)
 
@@ -146,7 +166,9 @@ If you want to edit the code or run TinkerPilot in development mode (with hot-re
 ```bash
 git clone <repo-url> TinkerPilot
 cd TinkerPilot
-./scripts/setup.sh
+./scripts/setup.sh      # macOS (uses Homebrew)
+# Or on Linux, use the global installer which handles apt/yum:
+# curl -fsSL https://raw.githubusercontent.com/sudhanshu456/tinkerpilot/main/install.sh | bash
 ```
 
 ### 2. Run (Development Mode)
@@ -271,10 +293,10 @@ tp serve
 
 | Model | Purpose | Size | Engine |
 |-------|---------|------|--------|
-| Qwen2.5-3B-Instruct | Chat, summarization, code analysis | ~2.0 GB | Ollama (Metal GPU) |
-| Qwen3-Embedding 0.6B | Text embeddings for RAG | ~639 MB | Ollama (Metal GPU) |
+| Qwen2.5-3B-Instruct | Chat, summarization, code analysis | ~2.0 GB | Ollama |
+| Qwen3-Embedding 0.6B | Text embeddings for RAG | ~639 MB | Ollama |
 | Moonshine Voice | Speech-to-text (streaming) | ~250 MB | Moonshine (ONNX) |
-| Kokoro-82M | Text-to-speech (6 voices) | ~82 MB | PyTorch (MPS GPU) |
+| Kokoro-82M | Text-to-speech (6 voices) | ~82 MB | PyTorch |
 
 See [docs/MODEL_SELECTION.md](docs/MODEL_SELECTION.md) for detailed rationale and alternatives analysis.
 

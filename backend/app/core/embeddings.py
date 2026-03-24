@@ -13,7 +13,10 @@ from app.config import get_config
 
 logger = logging.getLogger(__name__)
 
-OLLAMA_BASE = "http://localhost:11434"
+
+def _ollama_url(path: str) -> str:
+    """Build an Ollama API URL from config."""
+    return f"{get_config().ollama_base_url}{path}"
 
 
 def _embed_via_ollama(text: str, model: Optional[str] = None) -> list[float]:
@@ -22,7 +25,7 @@ def _embed_via_ollama(text: str, model: Optional[str] = None) -> list[float]:
     model_name = model or config.embedding.model_name
 
     r = httpx.post(
-        f"{OLLAMA_BASE}/api/embed",
+        _ollama_url("/api/embed"),
         json={"model": model_name, "input": text},
         timeout=30,
     )
@@ -38,7 +41,7 @@ def _embed_batch_via_ollama(texts: list[str], model: Optional[str] = None) -> li
     model_name = model or config.embedding.model_name
 
     r = httpx.post(
-        f"{OLLAMA_BASE}/api/embed",
+        _ollama_url("/api/embed"),
         json={"model": model_name, "input": texts},
         timeout=60,
     )

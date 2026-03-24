@@ -141,7 +141,7 @@ def transcribe(
     summarize: bool = typer.Option(True, "--summarize/--no-summarize", "-s/-S"),
 ):
     """Transcribe an audio file and optionally summarize it."""
-    from app.core.whisper_stt import transcribe_file
+    from app.core.moonshine_stt import transcribe_file
 
     path = Path(audio_file).expanduser().resolve()
     if not path.exists():

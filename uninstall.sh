@@ -15,7 +15,7 @@ echo "  TinkerPilot - Uninstaller"
 echo "============================================"
 echo ""
 
-read -p "Are you sure you want to uninstall TinkerPilot? (y/N) " confirm
+read -p "Are you sure you want to uninstall TinkerPilot? (y/N) " confirm < /dev/tty
 if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
     echo "Uninstallation cancelled."
     exit 0
@@ -38,7 +38,7 @@ echo -e "\n${BLUE}[2/3] Removing application files...${NC}"
 echo "Your TinkerPilot application is stored in ~/.tinkerpilot/app"
 echo "Your configuration and database (tasks, meetings, transcripts) are stored in ~/.tinkerpilot"
 echo ""
-read -p "Do you want to completely DELETE all your data and configuration? (y/N) " wipe_data
+read -p "Do you want to completely DELETE all your data and configuration? (y/N) " wipe_data < /dev/tty
 
 # Track if we are wiping everything before we actually wipe it so we can read the ollama marker
 WIPE_ALL=false
@@ -50,10 +50,19 @@ fi
 echo -e "\n${BLUE}[3/3] AI Engine & Models...${NC}"
 if [ -f "$HOME/.tinkerpilot/.tp_installed_ollama" ]; then
     echo "TinkerPilot originally installed Ollama on your system to run AI models locally."
-    read -p "Do you want to completely uninstall Ollama and remove all models? (y/N) " remove_ollama
+    read -p "Do you want to completely uninstall Ollama and remove all models? (y/N) " remove_ollama < /dev/tty
     if [[ "$remove_ollama" =~ ^[Yy]$ ]]; then
         echo "Uninstalling Ollama..."
-        brew uninstall ollama || true
+        if [ "$(uname)" == "Darwin" ]; then
+            brew uninstall ollama 2>/dev/null || true
+        else
+            # On Linux, Ollama installs via curl script to /usr/local/bin
+            sudo rm -f /usr/local/bin/ollama 2>/dev/null || true
+            sudo systemctl stop ollama 2>/dev/null || true
+            sudo systemctl disable ollama 2>/dev/null || true
+            sudo rm -f /etc/systemd/system/ollama.service 2>/dev/null || true
+            rm -rf "$HOME/.ollama" 2>/dev/null || true
+        fi
         rm -f "$HOME/.tinkerpilot/.tp_installed_ollama"
         echo -e "${GREEN}Ollama has been uninstalled.${NC}"
     else
@@ -62,7 +71,7 @@ if [ -f "$HOME/.tinkerpilot/.tp_installed_ollama" ]; then
 else
     echo "Ollama was already installed on your system before TinkerPilot."
     echo "TinkerPilot downloaded Qwen2.5 (3B) and Qwen3-Embedding (0.6B) (~2.6GB total)."
-    read -p "Do you want to delete ONLY these specific models to free up space? (y/N) " remove_models
+    read -p "Do you want to delete ONLY these specific models to free up space? (y/N) " remove_models < /dev/tty
     
     if [[ "$remove_models" =~ ^[Yy]$ ]]; then
         if command -v ollama &> /dev/null; then

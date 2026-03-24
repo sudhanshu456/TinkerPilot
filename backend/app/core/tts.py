@@ -76,6 +76,30 @@ VOICES = {
 DEFAULT_VOICE = "af_heart"
 
 
+SAMPLE_RATE = 24000
+
+
+def _generate_audio(
+    text: str,
+    voice: Optional[str] = None,
+    speed: float = 1.0,
+):
+    """Shared audio generation: returns a concatenated numpy array."""
+    import numpy as np
+
+    pipeline = get_tts_pipeline()
+    voice_id = VOICES.get(voice, voice) if voice else DEFAULT_VOICE
+
+    all_audio = []
+    for _, _, audio in pipeline(text, voice=voice_id, speed=speed):
+        all_audio.append(audio)
+
+    if not all_audio:
+        raise RuntimeError("TTS generated no audio")
+
+    return np.concatenate(all_audio)
+
+
 def speak(
     text: str,
     voice: Optional[str] = None,
@@ -94,34 +118,15 @@ def speak(
     Returns:
         Path to the generated WAV file.
     """
-    pipeline = get_tts_pipeline()
+    combined = _generate_audio(text, voice, speed)
 
-    # Resolve voice name
-    voice_id = VOICES.get(voice, voice) if voice else DEFAULT_VOICE
-
-    # Generate audio
-    all_audio = []
-    generator = pipeline(text, voice=voice_id, speed=speed)
-    for _, _, audio in generator:
-        all_audio.append(audio)
-
-    if not all_audio:
-        raise RuntimeError("TTS generated no audio")
-
-    # Concatenate all audio segments
-    import numpy as np
-
-    combined = np.concatenate(all_audio)
-
-    # Save to file
     if output_path is None:
         tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
         output_path = tmp.name
         tmp.close()
 
-    sf.write(output_path, combined, 24000)
-    logger.info(f"TTS audio saved: {output_path} ({len(combined) / 24000:.1f}s)")
-
+    sf.write(output_path, combined, SAMPLE_RATE)
+    logger.info(f"TTS audio saved: {output_path} ({len(combined) / SAMPLE_RATE:.1f}s)")
     return output_path
 
 
@@ -137,24 +142,12 @@ def speak_to_bytes(
         Tuple of (wav_bytes, sample_rate)
     """
     import io
-    import numpy as np
 
-    pipeline = get_tts_pipeline()
-    voice_id = VOICES.get(voice, voice) if voice else DEFAULT_VOICE
-
-    all_audio = []
-    generator = pipeline(text, voice=voice_id, speed=speed)
-    for _, _, audio in generator:
-        all_audio.append(audio)
-
-    if not all_audio:
-        raise RuntimeError("TTS generated no audio")
-
-    combined = np.concatenate(all_audio)
+    combined = _generate_audio(text, voice, speed)
 
     buf = io.BytesIO()
-    sf.write(buf, combined, 24000, format="WAV")
-    return buf.getvalue(), 24000
+    sf.write(buf, combined, SAMPLE_RATE, format="WAV")
+    return buf.getvalue(), SAMPLE_RATE
 
 
 def list_voices() -> dict:

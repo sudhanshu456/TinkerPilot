@@ -234,7 +234,42 @@ fi
 $PYTHON_CMD -m venv .venv
 source .venv/bin/activate
 pip install --default-timeout=100 --upgrade pip
-pip install --default-timeout=100 -e .
+
+# Pre-install minimal ML runtime before `pip install -e .` to prevent heavy
+# transitive dependencies (CUDA PyTorch ~3GB of nvidia-* libs, torchaudio,
+# torchvision, onnxruntime-gpu) from being pulled in automatically.
+# Only `torch` (for Kokoro TTS) and `onnxruntime` (for Moonshine STT) are
+# actually needed at runtime.
+#
+# Strategy: install torch + onnxruntime first, then use a pip constraints file
+# to lock the installed torch version so `pip install -e .` cannot "upgrade"
+# it to the massive CUDA build from PyPI.
+CONSTRAINTS_FILE=$(mktemp)
+trap "rm -f $CONSTRAINTS_FILE" EXIT
+
+info "Installing minimal ML dependencies for your platform..."
+if [ "$(uname)" == "Darwin" ]; then
+    # macOS: default PyPI torch already includes Metal/MPS — no CUDA bloat
+    pip install --default-timeout=100 torch onnxruntime
+elif ! command -v nvidia-smi &> /dev/null; then
+    # Linux without NVIDIA GPU: CPU-only PyTorch (saves ~3GB of nvidia-* libs)
+    info "No NVIDIA GPU detected — installing CPU-only PyTorch (saves ~3GB)."
+    pip install --default-timeout=100 torch --index-url https://download.pytorch.org/whl/cpu
+    pip install --default-timeout=100 onnxruntime
+else
+    # Linux with NVIDIA GPU: CUDA PyTorch is appropriate
+    info "NVIDIA GPU detected — installing CUDA-enabled PyTorch."
+    pip install --default-timeout=100 torch onnxruntime
+fi
+
+# Pin the torch version we just installed so pip won't swap it for the CUDA build
+TORCH_VER=$(pip show torch 2>/dev/null | grep "^Version:" | awk '{print $2}')
+if [ -n "$TORCH_VER" ]; then
+    echo "torch==$TORCH_VER" > "$CONSTRAINTS_FILE"
+    info "Pinned torch==$TORCH_VER to prevent CUDA upgrade."
+fi
+
+pip install --default-timeout=100 -e . -c "$CONSTRAINTS_FILE"
 info "Python environment ready."
 
 step "Setting up frontend UI..."

@@ -1,11 +1,11 @@
 #!/bin/bash
-# TinkerPilot Setup Script
-# One-command setup for macOS. Installs everything needed.
+# TinkerPilot Setup Script (Local Development)
+# Designed for macOS with Homebrew. On Linux, use install.sh instead.
 
 set -e
 
 echo "============================================"
-echo "  TinkerPilot - Setup"
+echo "  TinkerPilot - Local Dev Setup"
 echo "  Local AI Assistant for Developers"
 echo "============================================"
 echo ""
@@ -29,13 +29,20 @@ step() { echo -e "\n${GREEN}[STEP]${NC} $1"; }
 
 step "Checking prerequisites..."
 
-# Homebrew
+# Homebrew (required on macOS; optional on Linux if Linuxbrew is used)
 if ! command -v brew &> /dev/null; then
-    error "Homebrew not found. Install it first:"
-    echo '  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
-    exit 1
+    if [ "$(uname)" == "Linux" ]; then
+        warn "Homebrew not found. On Linux, consider using the global installer instead:"
+        echo "  curl -fsSL https://raw.githubusercontent.com/sudhanshu456/tinkerpilot/main/install.sh | bash"
+        echo ""
+        warn "Continuing without Homebrew — system packages must be installed manually."
+    else
+        error "Homebrew not found. Install it first:"
+        echo '  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+        exit 1
+    fi
 fi
-info "Homebrew found"
+if command -v brew &> /dev/null; then info "Homebrew found"; fi
 
 # Python (any 3.10+ works — no C++ compilation needed)
 PYTHON_CMD=""
@@ -147,7 +154,32 @@ source .venv/bin/activate
 
 info "Installing Python dependencies..."
 pip install --upgrade pip -q
-pip install -e . 2>&1 | tail -3
+
+# Pre-install minimal ML runtime to prevent heavy transitive deps
+# (CUDA PyTorch ~3GB nvidia-* libs, torchaudio, torchvision, onnxruntime-gpu).
+# Then pin torch so `pip install -e .` cannot swap it for the CUDA build.
+CONSTRAINTS_FILE=$(mktemp)
+trap "rm -f $CONSTRAINTS_FILE" EXIT
+
+info "Installing minimal ML dependencies for your platform..."
+if [ "$(uname)" == "Darwin" ]; then
+    pip install torch onnxruntime -q
+elif ! command -v nvidia-smi &> /dev/null; then
+    info "No NVIDIA GPU detected — installing CPU-only PyTorch (saves ~3GB)."
+    pip install torch --index-url https://download.pytorch.org/whl/cpu -q
+    pip install onnxruntime -q
+else
+    info "NVIDIA GPU detected — installing CUDA-enabled PyTorch."
+    pip install torch onnxruntime -q
+fi
+
+TORCH_VER=$(pip show torch 2>/dev/null | grep "^Version:" | awk '{print $2}')
+if [ -n "$TORCH_VER" ]; then
+    echo "torch==$TORCH_VER" > "$CONSTRAINTS_FILE"
+    info "Pinned torch==$TORCH_VER to prevent CUDA upgrade."
+fi
+
+pip install -e . -c "$CONSTRAINTS_FILE" 2>&1 | tail -3
 info "Python dependencies installed"
 
 # ─── 5. Frontend ─────────────────────────────────────────────
