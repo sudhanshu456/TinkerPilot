@@ -63,8 +63,6 @@ Run this single command in your terminal:
 curl -fsSL https://raw.githubusercontent.com/sudhanshu/tinkerpilot/main/install.sh | bash
 ```
 
-*(Note: Replace the URL with your actual GitHub repository URL once published).*
-
 The installer automatically:
 - Installs system dependencies (Homebrew, Python, Node, FFmpeg)
 - Downloads Ollama and the AI models
