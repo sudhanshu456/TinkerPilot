@@ -226,10 +226,12 @@ tp ask "explain the database schema" --no-rag
 
 # Ingest documents
 tp ingest ~/my-project
-tp ingest ./report.pdf
+tp ingest ./report.pdf --tag "finance"
 
 # Search
 tp search "database migration"
+tp search "database migration" --tag "finance"
+tp search "database migration" --folder ~/my-project
 
 # Meeting transcription
 tp transcribe meeting-recording.wav

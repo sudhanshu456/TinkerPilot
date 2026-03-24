@@ -69,6 +69,7 @@ def ask(
 def ingest(
     path: str = typer.Argument(..., help="File or directory path to ingest"),
     recursive: bool = typer.Option(True, "--recursive/--no-recursive", "-r/-R"),
+    tag: Optional[str] = typer.Option(None, "--tag", "-t", help="Tag for the ingested documents"),
 ):
     """Ingest files or directories into the knowledge base."""
     from app.core.rag import ingest_file, ingest_directory
@@ -80,12 +81,12 @@ def ingest(
 
     if target.is_file():
         console.print(f"Ingesting file: {target.name}")
-        result = ingest_file(str(target))
+        result = ingest_file(str(target), tag=tag)
         console.print(f"  Chunks: {result['chunk_count']}")
         console.print("[green]Done.[/green]")
     else:
         console.print(f"Ingesting directory: {target}")
-        results = ingest_directory(str(target), recursive=recursive)
+        results = ingest_directory(str(target), recursive=recursive, tag=tag)
         total_chunks = sum(r.get("chunk_count", 0) for r in results)
         console.print(f"  Files: {len(results)}, Total chunks: {total_chunks}")
         errors = [r for r in results if "error" in r]
@@ -101,12 +102,31 @@ def ingest(
 def search(
     query: str = typer.Argument(..., help="Search query"),
     limit: int = typer.Option(10, "--limit", "-n"),
+    tag: Optional[str] = typer.Option(None, "--tag", "-t", help="Filter by tag"),
+    folder: Optional[str] = typer.Option(None, "--folder", "-f", help="Search within a specific folder/project"),
 ):
     """Search across all indexed documents, tasks, and meetings."""
     from app.db.vector import query_collection
 
     console.print(f"[dim]Searching for: {query}[/dim]")
-    results = query_collection(query, n_results=limit)
+    
+    where_clauses = {}
+    if tag:
+        where_clauses["tag"] = tag
+    if folder:
+        # Resolve to absolute path for filtering
+        folder_path = str(Path(folder).expanduser().resolve())
+        # Note: ChromaDB $contains requires where condition correctly setup
+        # If there are multiple clauses, we must use $and.
+        where_clauses["filepath"] = {"$contains": folder_path}
+        
+    where = None
+    if len(where_clauses) == 1:
+        where = where_clauses
+    elif len(where_clauses) > 1:
+        where = {"$and": [{k: v} for k, v in where_clauses.items()]}
+            
+    results = query_collection(query, n_results=limit, where=where)
 
     docs = results.get("documents", [[]])[0]
     metas = results.get("metadatas", [[]])[0]

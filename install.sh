@@ -316,9 +316,7 @@ fi
 
 cat > "$BIN_DIR/tp" << EOL
 #!/bin/bash
-cd "$INSTALL_DIR/backend"
-source .venv/bin/activate
-exec python -m cli.main "\$@"
+exec "$INSTALL_DIR/backend/.venv/bin/python" "$INSTALL_DIR/backend/cli/main.py" "\$@"
 EOL
 chmod +x "$BIN_DIR/tp"
 info "Created global command: ${BIN_DIR}/tp"

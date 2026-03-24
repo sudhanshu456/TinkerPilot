@@ -19,7 +19,7 @@ from app.db.models import Document
 logger = logging.getLogger(__name__)
 
 
-def ingest_file(filepath: str, collection_name: Optional[str] = None) -> dict:
+def ingest_file(filepath: str, collection_name: Optional[str] = None, tag: Optional[str] = None) -> dict:
     """
     Ingest a single file into the RAG pipeline.
     Parse -> Chunk -> Embed -> Store in ChromaDB + SQLite.
@@ -76,6 +76,8 @@ def ingest_file(filepath: str, collection_name: Optional[str] = None) -> dict:
             flat_meta["line_start"] = chunk["metadata"]["line_start"]
         if "line_end" in chunk["metadata"]:
             flat_meta["line_end"] = chunk["metadata"]["line_end"]
+        if tag:
+            flat_meta["tag"] = tag
         metadatas.append(flat_meta)
 
     # Upsert (handles re-ingestion)
@@ -117,6 +119,7 @@ def ingest_directory(
     dirpath: str,
     recursive: bool = True,
     collection_name: Optional[str] = None,
+    tag: Optional[str] = None,
 ) -> list[dict]:
     """Ingest all supported files from a directory."""
     path = Path(dirpath).resolve()
@@ -147,7 +150,7 @@ def ingest_directory(
             ):
                 continue
             try:
-                result = ingest_file(str(fpath), collection_name)
+                result = ingest_file(str(fpath), collection_name, tag)
                 results.append(result)
             except Exception as e:
                 logger.error(f"Error ingesting {fpath}: {e}")
