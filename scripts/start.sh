@@ -18,9 +18,15 @@ error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 cleanup() {
     echo ""
-    echo "Shutting down..."
-    kill $BACKEND_PID 2>/dev/null
-    kill $FRONTEND_PID 2>/dev/null
+    echo "Shutting down servers..."
+    if [ ! -z "$BACKEND_PID" ]; then kill -TERM $BACKEND_PID 2>/dev/null || true; fi
+    
+    # npm spawns child processes, we need to kill the process group or use pkill
+    if [ ! -z "$FRONTEND_PID" ]; then 
+        pkill -P $FRONTEND_PID 2>/dev/null || true
+        kill -TERM $FRONTEND_PID 2>/dev/null || true
+    fi
+    echo "Done."
     exit 0
 }
 trap cleanup SIGINT SIGTERM
