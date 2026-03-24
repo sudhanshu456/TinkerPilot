@@ -210,10 +210,22 @@ fi
 
 step "Setting up backend..."
 cd "$INSTALL_DIR/backend"
-rm -rf .venv
+
+if [ -d ".venv" ]; then
+    echo "An existing backend virtual environment was found."
+    echo "A clean install prevents Python version conflicts, but takes longer."
+    read -p "  Perform clean install of backend dependencies? (Y/n): " CLEAN_VENV
+    if [[ ! "$CLEAN_VENV" =~ ^[Nn]$ ]]; then
+        info "Wiping old virtual environment..."
+        rm -rf .venv
+    else
+        info "Keeping existing virtual environment (Not recommended if Python version changed)."
+    fi
+fi
+
 $PYTHON_CMD -m venv .venv
 source .venv/bin/activate
-# pip install --default-timeout=100 --upgrade pip
+pip install --default-timeout=100 --upgrade pip
 pip install --default-timeout=100 -e .
 info "Python environment ready."
 
