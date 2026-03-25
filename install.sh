@@ -138,33 +138,6 @@ if ! curl -s http://localhost:11434/api/tags &> /dev/null; then
     sleep 3
 fi
 
-step "Downloading TinkerPilot..."
-LATEST_TAG=$(curl -s https://api.github.com/repos/sudhanshu456/tinkerpilot/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-
-if [ -n "$LATEST_TAG" ]; then
-    TAR_URL="https://github.com/sudhanshu456/tinkerpilot/releases/download/${LATEST_TAG}/tinkerpilot-release.tar.gz"
-    info "Downloading pre-built release ${LATEST_TAG}..."
-    if [ -d "$INSTALL_DIR" ]; then
-        info "Updating existing installation at $INSTALL_DIR..."
-        rm -rf "$INSTALL_DIR.old"
-        mv "$INSTALL_DIR" "$INSTALL_DIR.old"
-    fi
-    mkdir -p "$INSTALL_DIR"
-    curl -fsSL "$TAR_URL" | tar -xz -C "$INSTALL_DIR"
-    cd "$INSTALL_DIR"
-else
-    warn "No GitHub release found. Falling back to source clone..."
-    if [ -d "$INSTALL_DIR" ]; then
-        info "Updating existing installation at $INSTALL_DIR..."
-        cd "$INSTALL_DIR"
-        git pull origin main --quiet || true
-    else
-        info "Cloning to $INSTALL_DIR..."
-        git clone https://github.com/sudhanshu456/tinkerpilot.git "$INSTALL_DIR" --quiet
-        cd "$INSTALL_DIR"
-    fi
-fi
-
 step "Configuring TinkerPilot..."
 CONFIG_FILE="$CONFIG_DIR/config.yaml"
 
@@ -233,7 +206,8 @@ else
 fi
 
 step "Setting up backend..."
-cd "$INSTALL_DIR/backend" || error "Backend directory not found at $INSTALL_DIR/backend"
+mkdir -p "$INSTALL_DIR"
+cd "$INSTALL_DIR"
 
 if [ -d ".venv" ]; then
     echo "An existing backend virtual environment was found."
@@ -251,15 +225,9 @@ $PYTHON_CMD -m venv .venv
 source .venv/bin/activate
 # pip install --default-timeout=100 --upgrade pip
 
-# Pre-install minimal ML runtime before `pip install -e .` to prevent heavy
+# Pre-install minimal ML runtime to prevent heavy
 # transitive dependencies (CUDA PyTorch ~3GB of nvidia-* libs, torchaudio,
 # torchvision, onnxruntime-gpu) from being pulled in automatically.
-# Only `torch` (for Kokoro TTS) and `onnxruntime` (for Moonshine STT) are
-# actually needed at runtime.
-#
-# Strategy: install torch + onnxruntime first, then use a pip constraints file
-# to lock the installed torch version so `pip install -e .` cannot "upgrade"
-# it to the massive CUDA build from PyPI.
 CONSTRAINTS_FILE=$(mktemp)
 trap "rm -f $CONSTRAINTS_FILE" EXIT
 
@@ -285,16 +253,30 @@ if [ -n "$TORCH_VER" ]; then
     info "Pinned torch==$TORCH_VER to prevent CUDA upgrade."
 fi
 
-pip install --default-timeout=100 -e . -c "$CONSTRAINTS_FILE"
-info "Python environment ready."
+step "Downloading & Installing TinkerPilot..."
+LATEST_TAG=$(curl -s https://api.github.com/repos/sudhanshu456/tinkerpilot/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
 
-step "Setting up frontend UI..."
-if [ -d "$INSTALL_DIR/frontend/out" ] && [ -f "$INSTALL_DIR/frontend/out/index.html" ]; then
-    info "Frontend pre-built assets detected. Skipping UI build."
+if [ -n "$LATEST_TAG" ]; then
+    WHL_URL="https://github.com/sudhanshu456/tinkerpilot/releases/download/${LATEST_TAG}/tinkerpilot-backend-any.whl"
+    info "Installing pre-built release ${LATEST_TAG} via pip..."
+    pip install --default-timeout=100 "$WHL_URL" -c "$CONSTRAINTS_FILE"
 else
-    warn "No pre-built frontend found. Building from source..."
+    warn "No pre-built GitHub release found. Falling back to downloading and building source code..."
+    if [ -d "source" ]; then
+        info "Updating existing source installation..."
+        cd source
+        git pull origin main --quiet || true
+        cd ..
+    else
+        info "Cloning source from git..."
+        git clone https://github.com/sudhanshu456/tinkerpilot.git source --quiet
+    fi
+    pip install --default-timeout=100 -e source/backend -c "$CONSTRAINTS_FILE"
+    
+    # build UI natively only if fallback is used
+    step "Setting up frontend UI..."
     if ! command -v node &> /dev/null; then
-        warn "Node.js is missing (required to build UI)."
+        warn "Node.js is missing (required to build UI locally when fallback is used)."
         if [ "$PKG_MGR" == "brew" ]; then
             info "Installing Node.js via Homebrew..."
             brew install node
@@ -310,20 +292,21 @@ else
             error "Please manually install Node.js 18+ before continuing."
         fi
     fi
-    cd "$INSTALL_DIR/frontend"
+    cd source/frontend
     npm install --silent
     npm run build --silent
-    info "Frontend built as static app."
+    info "Frontend built as static app locally."
+    cd ../..
 fi
 
-cd "$INSTALL_DIR/backend"
+info "Python environment and TinkerPilot ready."
+
 ./.venv/bin/python -c "
-import sys; sys.path.insert(0, '.')
 from app.config import ensure_directories
 from app.db.sqlite import init_db
 ensure_directories()
 init_db()
-"
+" || true
 
 step "Creating 'tp' global command..."
 BIN_DIR="/usr/local/bin"
@@ -335,11 +318,13 @@ if [ ! -w "$BIN_DIR" ]; then
     fi
 fi
 
+# We can simply symlink the executable or create a direct runner!
 cat > "$BIN_DIR/tp" << EOL
 #!/bin/bash
-source "$INSTALL_DIR/backend/.venv/bin/activate"
-export PYTHONPATH="$INSTALL_DIR/backend"
-exec python "$INSTALL_DIR/backend/cli/main.py" "\$@"
+source "$INSTALL_DIR/.venv/bin/activate"
+export PYTHONPATH="$INSTALL_DIR/source/backend"
+# Execute the tp script installed by the pip wheel or fallback pip editable install
+exec "$INSTALL_DIR/.venv/bin/tp" "\$@"
 EOL
 chmod +x "$BIN_DIR/tp"
 info "Created global command: ${BIN_DIR}/tp"

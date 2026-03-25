@@ -30,29 +30,12 @@ jobs:
           # Copy compiled frontend into backend module for the pip package
           mkdir -p backend/app/static/ui
           cp -r frontend/out/* backend/app/static/ui/
-          
-          # Remove massive node_modules to keep everything clean
-          rm -rf frontend/node_modules
-          rm -rf .git .github
-          
-          # Create the source tarball containing the whole repo (used by install.sh)
-          tar --exclude=tinkerpilot-release.tar.gz -czf tinkerpilot-release.tar.gz -C . .
 
           # Build the .whl using standard python tools
           cd backend
           pip install build
           python -m build --wheel
           mv dist/*.whl ../tinkerpilot-backend-any.whl
-          
-      - name: Upload Release Tarball
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./tinkerpilot-release.tar.gz
-          asset_name: tinkerpilot-release.tar.gz
-          asset_content_type: application/gzip
 
       - name: Upload Python Wheel
         uses: actions/upload-release-asset@v1
