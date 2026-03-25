@@ -791,10 +791,34 @@ def voices():
 # ─── Server ──────────────────────────────────────────────────
 
 
-@app.command()
-def serve(
+serve_app = typer.Typer(help="Manage the TinkerPilot API server.", no_args_is_help=False)
+
+
+def get_pid_file():
+    from app.config import USER_DATA_DIR
+    return USER_DATA_DIR / "server.pid"
+
+
+@serve_app.callback(invoke_without_command=True)
+def serve_main(
+    ctx: typer.Context,
     host: str = typer.Option("127.0.0.1", "--host", "-h"),
     port: int = typer.Option(8000, "--port", "-p"),
+    background: bool = typer.Option(False, "--background", "-b", help="Run in background"),
+):
+    """Manage the TinkerPilot API server."""
+    if ctx.invoked_subcommand is None:
+        # Default behavior: tp serve -> starts the server
+        start(host=host, port=port, background=background)
+
+
+@serve_app.command("start")
+def start(
+    host: str = typer.Option("127.0.0.1", "--host", "-h"),
+    port: int = typer.Option(8000, "--port", "-p"),
+    background: bool = typer.Option(False, "--background", "-b", help="Run in background"),
+    log_level: str = typer.Option("info", "--log-level", help="Logging level (info, debug, warning, error)"),
+    console: bool = typer.Option(False, "--console", help="Force foreground even if background is requested"),
     no_open: bool = typer.Option(False, "--no-open", help="Don't auto-open browser"),
 ):
     """Start the TinkerPilot API server."""
@@ -802,8 +826,61 @@ def serve(
     import webbrowser
     import threading
     import time
-    import socket
+    import os
+    import subprocess
+    import signal
 
+    pid_file = get_pid_file()
+    
+    # Check if already running
+    if pid_file.exists():
+        try:
+            pid = int(pid_file.read_text().strip())
+            os.kill(pid, 0)
+            console.print(f"[yellow]TinkerPilot server is already running (PID: {pid}).[/yellow]")
+            console.print("Use [bold]tp serve stop[/bold] to stop it.")
+            return
+        except (ValueError, ProcessLookupError, PermissionError):
+            pid_file.unlink()
+
+    # Determine foreground vs background
+    # --console takes precedence over -b
+    is_background = background and not console
+
+    if is_background:
+        # Start as background process
+        # We re-run the same command but with --console so it stays in foreground in the child process
+        cmd = [sys.executable, "-m", "cli.main", "serve", "start", "--host", host, "--port", str(port), "--console", "--log-level", log_level]
+        if no_open:
+            cmd.append("--no-open")
+            
+        # Add backend to path for the child process
+        env = os.environ.copy()
+        from app.config import PROJECT_ROOT
+        env["PYTHONPATH"] = str(PROJECT_ROOT / "backend")
+        
+        # Open a log file for output
+        from app.config import USER_DATA_DIR
+        log_path = USER_DATA_DIR / "server.log"
+        log_file = open(log_path, "a")
+        
+        process = subprocess.Popen(
+            cmd,
+            stdout=log_file,
+            stderr=log_file,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True, # Detach
+            env=env
+        )
+        
+        # Save PID
+        pid_file.write_text(str(process.pid))
+        console.print(f"[bold green]TinkerPilot server started in background (PID: {process.pid})[/bold green]")
+        console.print(f"Log: [dim]{log_path}[/dim]")
+        console.print(f"URL: [bold blue]http://{host}:{port}[/bold blue]")
+        return
+
+    # Foreground Mode
     if not no_open:
         def launch_browser():
             time.sleep(1.5)  # Let Uvicorn boot up
@@ -812,8 +889,67 @@ def serve(
 
         threading.Thread(target=launch_browser, daemon=True).start()
 
-    console.print(f"[bold cyan]Starting TinkerPilot server at http://{host}:{port}[/bold cyan]")
-    uvicorn.run("app.main:app", host=host, port=port, reload=False)
+    # Save PID for foreground too so 'stop' can kill it if needed
+    pid_file.write_text(str(os.getpid()))
+
+    try:
+        console.print(f"[bold cyan]Starting TinkerPilot server at http://{host}:{port}[/bold cyan]")
+        console.print(f"[dim]Log level: {log_level}[/dim]")
+        
+        # Set level globally for our app loggers
+        import logging
+        logging.getLogger("app").setLevel(log_level.upper())
+        logging.getLogger("uvicorn.error").setLevel(log_level.upper())
+        
+        uvicorn.run("app.main:app", host=host, port=port, reload=False, log_level=log_level.lower())
+    finally:
+        # Cleanup PID on exit
+        if pid_file.exists():
+            pid_file.unlink()
+
+
+@serve_app.command("stop")
+def stop():
+    """Stop the background TinkerPilot server."""
+    import os
+    import signal
+    
+    pid_file = get_pid_file()
+    if not pid_file.exists():
+        console.print("[yellow]TinkerPilot server is not running.[/yellow]")
+        return
+        
+    try:
+        pid = int(pid_file.read_text().strip())
+        console.print(f"[dim]Stopping server (PID: {pid})...[/dim]")
+        
+        # Try graceful shutdown (SIGTERM)
+        os.kill(pid, signal.SIGTERM)
+        
+        # Wait a bit
+        import time
+        for _ in range(30):
+            try:
+                os.kill(pid, 0)
+                time.sleep(0.1)
+            except ProcessLookupError:
+                break
+        else:
+            # Force kill
+            console.print("[yellow]Server did not stop gracefully, forcing...[/yellow]")
+            os.kill(pid, signal.SIGKILL)
+            
+        console.print("[green]TinkerPilot server stopped.[/green]")
+    except (ValueError, ProcessLookupError):
+        console.print("[yellow]Stale PID file found. Cleaning up.[/yellow]")
+    except Exception as e:
+        console.print(f"[red]Error stopping server: {e}[/red]")
+    finally:
+        if pid_file.exists():
+            pid_file.unlink()
+
+
+app.add_typer(serve_app, name="serve")
 
 
 # ─── Security ──────────────────────────────────────────────────
