@@ -48,8 +48,9 @@ def get_tts_pipeline():
 
     from kokoro import KPipeline
 
-    logger.info("Loading Kokoro TTS pipeline...")
-    _pipeline = KPipeline(lang_code="a", repo_id="hexgrad/Kokoro-82M")  # American English
+    lang = config.tts.lang_code or "a"
+    logger.info(f"Loading Kokoro TTS pipeline (lang_code={lang})...")
+    _pipeline = KPipeline(lang_code=lang, repo_id="hexgrad/Kokoro-82M")
     logger.info("Kokoro TTS pipeline loaded.")
     return _pipeline
 
@@ -82,16 +83,21 @@ SAMPLE_RATE = 24000
 def _generate_audio(
     text: str,
     voice: Optional[str] = None,
-    speed: float = 1.0,
+    speed: Optional[float] = None,
 ):
     """Shared audio generation: returns a concatenated numpy array."""
     import numpy as np
+    from app.config import get_config
 
+    config = get_config()
     pipeline = get_tts_pipeline()
-    voice_id = VOICES.get(voice, voice) if voice else DEFAULT_VOICE
+    
+    actual_voice = voice if voice else config.tts.voice
+    voice_id = VOICES.get(actual_voice, actual_voice)
+    actual_speed = speed if speed is not None else config.tts.speed
 
     all_audio = []
-    for _, _, audio in pipeline(text, voice=voice_id, speed=speed):
+    for _, _, audio in pipeline(text, voice=voice_id, speed=actual_speed):
         all_audio.append(audio)
 
     if not all_audio:
@@ -103,20 +109,26 @@ def _generate_audio(
 def stream_audio_blocks(
     text: str,
     voice: Optional[str] = None,
-    speed: float = 1.0,
+    speed: Optional[float] = None,
 ):
     """Generate audio dynamically and yield chunks as numpy arrays."""
+    from app.config import get_config
+    
+    config = get_config()
     pipeline = get_tts_pipeline()
-    voice_id = VOICES.get(voice, voice) if voice else DEFAULT_VOICE
+    
+    actual_voice = voice if voice else config.tts.voice
+    voice_id = VOICES.get(actual_voice, actual_voice)
+    actual_speed = speed if speed is not None else config.tts.speed
 
-    for _, _, audio in pipeline(text, voice=voice_id, speed=speed):
+    for _, _, audio in pipeline(text, voice=voice_id, speed=actual_speed):
         yield audio
 
 
 def speak(
     text: str,
     voice: Optional[str] = None,
-    speed: float = 1.0,
+    speed: Optional[float] = None,
     output_path: Optional[str] = None,
 ) -> str:
     """
@@ -146,7 +158,7 @@ def speak(
 def speak_to_bytes(
     text: str,
     voice: Optional[str] = None,
-    speed: float = 1.0,
+    speed: Optional[float] = None,
 ) -> tuple[bytes, int]:
     """
     Generate speech audio and return as WAV bytes.

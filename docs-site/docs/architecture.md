@@ -54,7 +54,7 @@ graph TD
 
 *   **Frontend:** It uses Next.js framework. Compiles to static HTML/JS for zero-dependency hosting.
 *   **Backend:** It uses Python FastAPI framework. Fast, modern, and perfectly suited for streaming AI chunks via WebSockets.
-*   **Local AI:** It uses Ollama running the Qwen family. Hand-selected for having the best performance-to-size ratio on consumer hardware (Apple Metal GPU on macOS, CPU/CUDA on Linux). Ollama have many models and can be easily swapped with any other local LLM server. You can change the model by changing the `model` field in the `~/.tinkerpilot/config.json` file. However, you can change only llm used for text generation, code instruct, chat and embeddings. 
+*   **Local AI:** It uses Ollama running the Qwen family. Hand-selected for having the best performance-to-size ratio on consumer hardware (Apple Metal GPU on macOS, CPU/CUDA on Linux). Ollama have many models and can be easily swapped with any other local LLM server. You can change the model by changing the `model` field in the `~/.tinkerpilot/config.yaml` file. However, you can change only llm used for text generation, code instruct, chat and embeddings. 
 *   **Audio AI:** It uses Moonshine Voice (STT) and Kokoro (TTS) running natively via PyTorch. Avoids heavy C++ compilation steps while maintaining real-time streaming latency.
 *   **Data Storage:** It uses SQLite (structured data) and ChromaDB (vector embeddings). No background database daemons required.
 
