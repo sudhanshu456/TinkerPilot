@@ -856,16 +856,15 @@ def start(
     is_background = background and not force_console
 
     if is_background:
-        # Start as background process
-        # We re-run the same command but with --console so it stays in foreground in the child process
-        cmd = [sys.executable, "-m", "cli.main", "serve", "start", "--host", host, "--port", str(port), "--console", "--log-level", log_level]
+        # Use the installed 'tp' binary to spawn the background server.
+        # python -m cli.main doesn't work from site-packages, but the `tp` entry point always does.
+        import pathlib
+        tp_bin = pathlib.Path(sys.executable).parent / "tp"
+        cmd = [str(tp_bin), "serve", "start", "--host", host, "--port", str(port), "--console", "--log-level", "info"]
         if no_open:
             cmd.append("--no-open")
             
-        # Add backend to path for the child process
         env = os.environ.copy()
-        from app.config import PROJECT_ROOT
-        env["PYTHONPATH"] = str(PROJECT_ROOT / "backend")
         
         # Open a log file for output
         from app.config import USER_DATA_DIR
@@ -877,7 +876,7 @@ def start(
             stdout=log_file,
             stderr=log_file,
             stdin=subprocess.DEVNULL,
-            start_new_session=True, # Detach
+            start_new_session=True,  # Detach from current session
             env=env
         )
         
