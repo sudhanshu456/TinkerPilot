@@ -73,3 +73,22 @@ There are four main tables in the database:
 -   **`ChatMessage`**: Stores the chat history for all conversations. Each message has a role (`user` or `assistant`) and content.
 
 This simple but effective schema allows TinkerPilot to store and manage all the user's data locally.
+
+
+### Python Dependencies (installed automatically)
+
+| Package                 | Purpose                               |
+| ----------------------- | ------------------------------------- |
+| `fastapi`, `uvicorn`    | Backend API server                    |
+| `moonshine-voice`       | Speech-to-text (pulls PyTorch)        |
+| `kokoro`                | Text-to-speech (pulls PyTorch)        |
+| `chromadb`              | Vector database for RAG               |
+| `sqlmodel`, `aiosqlite` | SQLite ORM + async driver             |
+| `PyMuPDF`, `python-docx`| PDF and DOCX parsing                  |
+| `sounddevice`, `soundfile`| Audio I/O                             |
+| `typer`, `rich`         | CLI framework                         |
+| `httpx`                 | HTTP client (Ollama communication)    |
+| `pyyaml`                | Config file parsing                   |
+| `img2pdf`               | Image-to-PDF conversion               |
+
+> **Note:** The installer pre-installs only the minimal ML runtime needed for your platform — just `torch` (for TTS) and `onnxruntime` (for STT). Unnecessary transitive dependencies like `torchaudio`, `torchvision`, and `onnxruntime-gpu` are avoided. On Linux without an NVIDIA GPU, CPU-only PyTorch (~1 GB) is used instead of the default CUDA build (~2.5 GB).

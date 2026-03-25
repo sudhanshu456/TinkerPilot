@@ -1,16 +1,45 @@
 ---
 sidebar_position: 7
-title: How to Extend TinkerPilot
+title: How to extend TinkerPilot
 ---
-TinkerPilot's architecture is built to be easily extensible. Because it uses FastAPI for the backend and a Typer CLI, adding new tools involves creating core logic, exposing it via an API endpoint, and optionally binding it to a CLI command or a frontend page.
+TinkerPilot's architecture is built to be easily extensible. Because it uses FastAPI for the backend and a Typer CLI, adding new tools involves creating core logic, exposing it via an API endpoint, and optionally binding it to a CLI command or a frontend.
 
 This guide provides instructions and examples for developers who want to extend TinkerPilot with new features.
 
----
+To setup the local development environment, follow the below steps:
+
+## Local Setup
+
+If you want to edit the code or run TinkerPilot in development mode (with hot-reloading Next.js):
+
+```bash
+git clone <repo-url> TinkerPilot
+cd TinkerPilot
+./scripts/setup.sh      # macOS (uses Homebrew)
+```
+
+### Running in Development Mode
+
+If you have set up a local development environment, you can run the application with hot-reloading for both the frontend and backend.
+
+Use the `start.sh` script to launch all the required services:
+
+```bash
+./scripts/start.sh
+```
+
+This script will:
+1.  Start the Ollama server.
+2.  Start the Python FastAPI backend.
+3.  Start the Next.js development server.
+
+You can access the web interface at **http://localhost:3000**.
+
+In local development to run `tp` commands, you need to activate the virtual environment first: `cd backend && source .venv/bin/activate && tp <cmd>`.
 
 ## Example 1: Extending the Backend & CLI (`git-digest`)
 
-Let's walk through how a real feature—`tp git-digest`—was added to TinkerPilot. The goal of this feature is to read the git log of a directory, pass it to the local LLM, and return a summarized digest.
+Let's walk through how a real feature `tp git-digest` was added to TinkerPilot. The goal of this feature is to read the git log of a directory, pass it to the local LLM, and return a summarized digest.
 
 ### 1. Add Core Logic (`backend/app/core/`)
 
@@ -178,8 +207,8 @@ import Link from 'next/link';
 ```
 
 ### 5. Update Documentation
-Finally, don't forget to update the Docusaurus documentation! You would add your new feature to `docs-site/docs/index.md` (Features list) and perhaps create a new page `docs-site/docs/features/calendar.md`.
+Finally, don't forget to update the Docusaurus documentation! 
 
 ---
 
-By following this pattern—Core Logic -> API Endpoint -> Interface (CLI or UI)—you can easily build powerful new workflows into TinkerPilot while maintaining its clean, decoupled architecture.
+By following this pattern: **Core Logic -> API Endpoint -> Interface (CLI or UI)**, you can build any capabilities you want into TinkerPilot while maintaining its clean, decoupled architecture.

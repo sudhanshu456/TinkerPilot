@@ -2,174 +2,103 @@
 title: Getting Started
 sidebar_position: 2
 ---
+Installating TinkerPilot take one single command, and it will install all the dependencies and tools required for TinkerPilot to run, that too within less than 10 minutes, depending on your internet speed and your computer's performance.
 
-# Setup Instructions
+## What you need
 
-This guide will walk you through setting up TinkerPilot on your local machine.
+Depending on the type of system you're running TinkerPilot on, here are the minimum requirements:
 
-## Requirements
+* macOS
+    * Apple Silicon (M1+) — 8 GB RAM min.
+    * Homebrew - Install script needs this to install missing dependencies if any.
+    * Python 3.10 – 3.12 - Due to Kokora (TTS) and Moonshine Voice (STT) dependencies, Python 3.10 - 3.12 is required. Node.js 18+
+    * [Ollama](https://ollama.com/), a tool to run LLMs locally. 
+* Linux
+    * x86_64 — 8 GB RAM min; NVIDIA GPU optional (CUDA auto-detected)
+    * Python 3.10 – 3.12 and Node.js 18+
+    * [Ollama](https://ollama.com/), a tool to run LLMs locally. 
 
-|                 | macOS                                                       | Linux                                                              |
-| --------------- | ----------------------------------------------------------- | ------------------------------------------------------------------ |
-| **Hardware**    | Apple Silicon (M1+) — 8 GB RAM min, 16 GB+ recommended      | x86_64 — 8 GB RAM min; NVIDIA GPU optional (CUDA auto-detected)    |
-| **OS tooling**  | Homebrew                                                    | apt (Debian/Ubuntu) or yum (RHEL/Fedora)                           |
-| **Python**      | 3.10 – 3.12                                                 | 3.10 – 3.12                                                        |
-| **Node.js**     | 18+                                                         | 18+                                                                |
-| **Disk**        | ~3 GB for AI models                                         | ~3 GB (CPU-only PyTorch) or ~5 GB (CUDA PyTorch)                   |
+## Quick setup
 
-### Python Dependencies (installed automatically)
-
-| Package                 | Purpose                               |
-| ----------------------- | ------------------------------------- |
-| `fastapi`, `uvicorn`    | Backend API server                    |
-| `moonshine-voice`       | Speech-to-text (pulls PyTorch)        |
-| `kokoro`                | Text-to-speech (pulls PyTorch)        |
-| `chromadb`              | Vector database for RAG               |
-| `sqlmodel`, `aiosqlite` | SQLite ORM + async driver             |
-| `PyMuPDF`, `python-docx`| PDF and DOCX parsing                  |
-| `sounddevice`, `soundfile`| Audio I/O                             |
-| `typer`, `rich`         | CLI framework                         |
-| `httpx`                 | HTTP client (Ollama communication)    |
-| `pyyaml`                | Config file parsing                   |
-| `img2pdf`               | Image-to-PDF conversion               |
-
-> **Note:** The installer pre-installs only the minimal ML runtime needed for your platform — just `torch` (for TTS) and `onnxruntime` (for STT). Unnecessary transitive dependencies like `torchaudio`, `torchvision`, and `onnxruntime-gpu` are avoided. On Linux without an NVIDIA GPU, CPU-only PyTorch (~1 GB) is used instead of the default CUDA build (~2.5 GB).
-
-## Quick Start (Global Installation)
-
-The easiest way to install TinkerPilot as a standalone application is via the interactive installer.
-
-Run this single command in your terminal:
+To setup TinkerPilot on your system, run this single command in your terminal:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sudhanshu456/tinkerpilot/main/install.sh | bash
 ```
 
 The installer automatically:
--   Installs system dependencies (Homebrew, Python, Node, FFmpeg)
--   Downloads Ollama and the AI models
--   Interactively configures your preferences
--   Builds the UI into a static web app
--   Creates a global `tp` command so you can use TinkerPilot from anywhere
+- Installs system dependencies.
+- Downloads Ollama and the AI models, if not already installed and downloads the models if not already downloaded
+- Interactively configures your preferences
+  * HuggingFace Token, if you have one
+  * Obsidian Vault path, if you have one
+  * Enable Apple Notes integration, if you're running on macOS, want TinkerPilot to read your Apple notes for daily digest.
+- Builds the UI into a static web app
+- Creates a global `tp` command so you can use TinkerPilot from anywhere
+
+**Note:** In any case the installer fails or you face any issues, first rerun the installer script. It should resolve most of the issues.
 
 Once installed, simply run:
 
 ```bash
 tp serve
 ```
+This will start the AI backend and serve the Web UI at **http://localhost:8000**, or you can start using the CLI commands directly, see [Command Line Interface (CLI)](#command-line-interface-cli) section.
 
-This will start the AI backend and serve the Web UI at **http://localhost:8000**.
+Below is the list of models used by TinkerPilot, you can change them later from the config file. See [Configuration](#configuration) section.
 
-### Uninstall
-
-If you ever want to completely remove TinkerPilot, its models, and its data, run:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/sudhanshu456/tinkerpilot/main/uninstall.sh | bash
-```
-
-## Local Development
-
-If you want to edit the code or run TinkerPilot in development mode (with hot-reloading Next.js):
-
-### 1. Setup (one time)
-
-```bash
-git clone <repo-url> TinkerPilot
-cd TinkerPilot
-./scripts/setup.sh      # macOS (uses Homebrew)
-# Or on Linux, use the global installer which handles apt/yum:
-# curl -fsSL https://raw.githubusercontent.com/sudhanshu456/tinkerpilot/main/install.sh | bash
-```
-
-### 2. Run (Development Mode)
-
-```bash
-./scripts/start.sh
-```
-
-This starts Ollama, the Python FastAPI backend, and the Next.js dev server. Open **http://localhost:3000**.
-
-### 3. Or use Make
-
-```bash
-make setup   # one-time setup
-make run     # start everything
-```
-
-## Manual Setup (if setup.sh fails)
-
-```bash
-# 1. Install Ollama
-brew install ollama
-
-# 2. Pull models
-ollama pull qwen2.5:3b
-ollama pull qwen3-embedding:0.6b
-
-# 3. Python backend
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
-
-# 4. Frontend
-cd ../frontend
-npm install
-
-# 5. Start (3 terminals)
-ollama serve                              # Terminal 1
-cd backend && source .venv/bin/activate && python -m cli.main serve  # Terminal 2
-cd frontend && npm run dev                # Terminal 3
-
-# Open http://localhost:3000
-```
+| Model | Purpose | Engine |
+|-------|---------|--------|
+| [Qwen2.5-3B-Instruct](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct) | Chat, summarization, code analysis | Ollama |
+| [Qwen3-Embedding 0.6B](https://huggingface.co/Qwen) | Text embeddings for RAG | Ollama |
+| [Moonshine Voice](https://github.com/moonshine-ai/moonshine) | Speech-to-text (streaming) | Moonshine (ONNX) |
+| [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) | Text-to-speech (6 voices) | PyTorch |
 
 
-# Running the App
+## Configuration
 
-This guide explains how to run TinkerPilot in different modes and how to use the Command Line Interface (CLI).
+Tinkerpilot creates a config yaml under path `~/.tinkerpilot/config.yaml`, and you can edit it to change the default models, integrations, etc.
 
-## Running in Production Mode (Global Install)
+You can create this configuration file manually, before installing tinkerpilot, installer script will pick it up and use it.
 
-If you have installed TinkerPilot globally using the installer, you can run it from any directory using the `tp` command.
+> **Note on Model Configurability:**
+> * **LLM & Embeddings**: Fully modular via Ollama. You can seamlessly switch to any model available on Ollama (e.g., `llama3.2`, `nomic-embed-text`).
+> * **STT (Moonshine)**: The underlying engine is fixed, but you can configure the memory footprint via `model_size` (`tiny`, `small`, `medium`).
+> * **TTS (Kokoro-82M)**: The underlying engine is fixed, but you can configure properties like `voice`, `speed`, and `lang_code`.
 
-To start the server, run:
+```yaml
+hf_token: "hf_your_token_here..."  # Set this to disable unauthenticated HF warnings
 
-```bash
-tp serve
-```
+llm:
+  model_name: "qwen2.5:3b"  # any model from: ollama list
+  temperature: 0.7
 
-This will start the AI backend and serve the Web UI at **http://localhost:8000**.
+embedding:
+  model_name: "qwen3-embedding:0.6b"  # or nomic-embed-text, mxbai-embed-large
 
-## Running in Development Mode
+stt:
+  model_size: small  # tiny, small, medium
+  language: en
 
-If you have set up a local development environment, you can run the application with hot-reloading for both the frontend and backend.
+tts:
+  voice: "af_heart"  # Kokoro voice (e.g., af_heart, am_adam, af_bella)
+  speed: 1.0
+  lang_code: "a"     # a=American English, b=British
 
-Use the `start.sh` script to launch all the required services:
+rag:
+  chunk_size: 512
+  top_k: 5
 
-```bash
-./scripts/start.sh
-```
-
-This script will:
-1.  Start the Ollama server.
-2.  Start the Python FastAPI backend.
-3.  Start the Next.js development server.
-
-You can access the web interface at **http://localhost:3000**.
-
-Alternatively, you can use the `Makefile`:
-
-```bash
-make run
+integrations:
+  obsidian_vault_path: ~/Documents/ObsidianVault
+  enable_apple_notes: true
 ```
 
 ## Command Line Interface (CLI)
 
 TinkerPilot provides a powerful CLI to interact with its features directly from the terminal.
 
-If you have a global installation, you can use `tp` from any folder. If you are in a local development environment, you need to activate the virtual environment first: `cd backend && source .venv/bin/activate && python -m cli.main <cmd>`.
+Installer script installs TinkerPilot `tp` cli globally, so you can use it from any folder/terminal.
 
 ### Common Commands
 
@@ -223,4 +152,12 @@ tp check-secrets .
 tp digest
 ```
 
+For more information on CLI commands, see [CLI Reference](./references/cli-reference.md)
 
+### Uninstall
+
+If you ever want to completely remove TinkerPilot, its models, and its data, run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sudhanshu456/tinkerpilot/main/uninstall.sh | bash
+```

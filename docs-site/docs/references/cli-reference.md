@@ -4,8 +4,6 @@ title: CLI Reference
 ---
 TinkerPilot provides a powerful Command Line Interface (CLI) to interact with its features directly from your terminal.
 
-If you have a global installation, use `tp` from any directory. If developing locally, you can use `cd backend && source .venv/bin/activate && python -m cli.main <cmd>`.
-
 ## General Features
 
 ### `ask`

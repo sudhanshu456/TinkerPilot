@@ -2,9 +2,12 @@
 sidebar_position: 5
 title: Implementation
 ---
+TinkerPilot is built with a modular architecture that allows for easy feature addition and maintenance. Project structure disaggrate core components into separate modules, core AI logic and execution is handled by `core` module, and cli is handled by `cli` module.
+
+Below is the complete project structure outlining the core components and their responsibilities:
 
 ```
-.
+TinkerPilot
 ├── backend/            # Python FastAPI backend
 │   ├── app/            # Core application logic
 │   │   ├── api/        # API endpoint routers
@@ -25,8 +28,7 @@ title: Implementation
 ├── scripts/            # Helper scripts for setup and execution
 │   ├── setup.sh        # Development environment setup
 │   └── start.sh        # Start script for development
-├── docs/               # General documentation
-└── docs-site/          # Docusaurus documentation website
+└── docs-site/          # Docusaurus documentation 
 ```
 
 ## `backend/`
@@ -43,6 +45,8 @@ This directory contains all the Python code for the backend server.
 -   **`cli/`**: This directory contains the code for the command-line interface, which is built with [Typer](https://typer.tiangolo.com/).
 -   **`tests/`**: Contains the backend tests (currently empty).
 
+For more details on backend and local AI implementation, see [Backend Implementation](./backend.md) and [Local AI](./local-ai.md).
+
 ## `frontend/`
 
 This directory contains the Next.js frontend application.
@@ -53,6 +57,8 @@ This directory contains the Next.js frontend application.
 -   **`public/`**: Contains static assets like images and fonts.
 -   **`next.config.js`**: The configuration file for the Next.js application.
 
+For more details on frontend implementation, see [Frontend Implementation](./frontend.md)
+
 ## `scripts/`
 
 This directory contains various helper scripts for setting up and running the application.
@@ -60,7 +66,6 @@ This directory contains various helper scripts for setting up and running the ap
 -   **`setup.sh`**: Sets up the local development environment.
 -   **`start.sh`**: Starts all the necessary services for local development.
 
-## `docs/` and `docs-site/`
+## `docs-site/`
 
--   **`docs/`**: Contains general documentation for the project, such as the `MODEL_SELECTION.md` file.
--   **`docs-site/`**: Contains the Docusaurus documentation website that you are currently viewing.
+Contains the Docusaurus documentation website that you are currently viewing.

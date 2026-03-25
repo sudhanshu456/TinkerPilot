@@ -52,6 +52,8 @@ When you ask a question in the chat, the following steps are performed:
 You can customize the AI models and other settings in the `~/.tinkerpilot/config.yaml` file. For example, you can change the LLM model used for chat, the embedding model, and the size of the speech-to-text model.
 
 ```yaml
+hf_token: "hf_your_token_here..."  # Set this to disable unauthenticated HF warnings
+
 llm:
   model_name: "qwen2.5:3b"  # any model from: ollama list
   temperature: 0.7
@@ -60,6 +62,21 @@ embedding:
   model_name: "qwen3-embedding:0.6b"  # or nomic-embed-text, mxbai-embed-large
 
 stt:
-  model_size: small  # tiny, base, small, medium, large
+  model_size: small  # tiny, small, medium
+  language: en
+
+tts:
+  voice: "af_heart"  # Kokoro voice (e.g., af_heart, am_adam, af_bella)
+  speed: 1.0
+  lang_code: "a"     # a=American English, b=British
+
+rag:
+  chunk_size: 512
+  top_k: 5
+
+integrations:
+  obsidian_vault_path: ~/Documents/ObsidianVault
+  enable_apple_notes: true
 ```
+
 This allows you to tailor the AI's performance and resource usage to your specific needs and hardware.
