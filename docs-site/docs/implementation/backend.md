@@ -2,9 +2,6 @@
 sidebar_position: 1
 title: Backend
 ---
-
-# Backend Implementation
-
 The TinkerPilot backend is a Python application built with [FastAPI](https://fastapi.tiangolo.com/). It serves as the core engine for the entire application, handling API requests, AI inference, database operations, and serving the frontend in a production environment.
 
 ## API Server

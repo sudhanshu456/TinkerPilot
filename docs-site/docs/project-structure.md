@@ -2,9 +2,6 @@
 sidebar_position: 5
 title: Project Structure
 ---
-
-# Project Structure
-
 This document provides a high-level overview of the TinkerPilot codebase structure.
 
 ```

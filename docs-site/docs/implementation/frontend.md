@@ -2,9 +2,6 @@
 sidebar_position: 2
 title: Frontend
 ---
-
-# Frontend Implementation
-
 The TinkerPilot frontend is a modern web application built with [Next.js](https://nextjs.org/) and [React](https://react.dev/). It is designed to be a simple, fast, and responsive user interface for interacting with the backend services.
 
 ## Tech Stack

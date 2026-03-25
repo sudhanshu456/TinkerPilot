@@ -1,10 +1,7 @@
 ---
 sidebar_position: 2
-title: Architecture Overview
+title: Architecture
 ---
-
-# Architecture
-
 TinkerPilot is designed as a standalone, offline-first application. When installed globally, it runs as a single lightweight FastAPI server that mounts the static Next.js frontend, entirely eliminating the need for Node.js at runtime.
 
 ```mermaid

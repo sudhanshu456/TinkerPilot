@@ -1,10 +1,7 @@
 ---
 sidebar_position: 7
-title: How to Extend
+title: How to Extend TinkerPilot
 ---
-
-# How to Extend TinkerPilot
-
 TinkerPilot's architecture is built to be easily extensible. Because it uses FastAPI for the backend and a Typer CLI, adding new tools involves creating core logic, exposing it via an API endpoint, and optionally binding it to a CLI command or a frontend page.
 
 This guide provides instructions and examples for developers who want to extend TinkerPilot with new features.
