@@ -215,7 +215,7 @@ llm:
 embedding:
   model_name: "qwen3-embedding:0.6b"  # or nomic-embed-text, mxbai-embed-large
 
-whisper:
+stt:
   model_size: small  # tiny, small, medium (Moonshine sizes)
   language: en       # ar, es, en, ja, ko, vi, uk, zh
 

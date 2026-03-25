@@ -74,7 +74,7 @@ def main():
 
     print("\n" + "=" * 50)
     print("All models ready!")
-    print("Note: Whisper (speech-to-text) downloads automatically on first use.")
+    print("Note: Moonshine Voice (speech-to-text) downloads automatically on first use.")
     print("=" * 50)
 
 

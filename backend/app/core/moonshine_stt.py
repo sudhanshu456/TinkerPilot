@@ -28,12 +28,22 @@ def _ensure_model():
         return _model_path, _model_arch
 
     from moonshine_voice import download
+    from moonshine_voice.moonshine_api import ModelArch
 
     config = get_config()
     language = config.stt.language or "en"
+    
+    # Map config size to Moonshine ModelArch (using streaming variants by default)
+    size_str = (config.stt.model_size or "small").upper()
+    arch_name = f"{size_str}_STREAMING"
+    try:
+        wanted_arch = getattr(ModelArch, arch_name)
+    except AttributeError:
+        logger.warning(f"Unknown Moonshine size '{size_str}', defaulting to SMALL_STREAMING")
+        wanted_arch = ModelArch.SMALL_STREAMING
 
-    logger.info(f"Ensuring Moonshine model is downloaded for language: {language}")
-    _model_path, _model_arch = download.get_model_for_language(language)
+    logger.info(f"Ensuring Moonshine model {wanted_arch.name} is downloaded for language: {language}")
+    _model_path, _model_arch = download.get_model_for_language(language, wanted_model_arch=wanted_arch)
     logger.info(f"Moonshine model ready: path={_model_path}")
     return _model_path, _model_arch
 
