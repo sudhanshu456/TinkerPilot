@@ -257,7 +257,7 @@ step "Downloading & Installing TinkerPilot..."
 LATEST_TAG=$(curl -s https://api.github.com/repos/sudhanshu456/tinkerpilot/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
 
 if [ -n "$LATEST_TAG" ]; then
-    WHL_URL="https://github.com/sudhanshu456/tinkerpilot/releases/download/${LATEST_TAG}/tinkerpilot-backend-any.whl"
+    WHL_URL="https://github.com/sudhanshu456/tinkerpilot/releases/download/${LATEST_TAG}/tinkerpilot-0.1.0-py3-none-any.whl"
     info "Installing pre-built release ${LATEST_TAG} via pip..."
     pip install --default-timeout=100 "$WHL_URL" -c "$CONSTRAINTS_FILE"
 else
