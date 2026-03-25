@@ -1,0 +1,46 @@
+name: Build and Release
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies and build frontend
+        run: |
+          cd frontend
+          npm install
+          npm run build
+        
+      - name: Package release
+        run: |
+          # Remove .git and github workflows to keep it clean
+          rm -rf .git .github
+          
+          # The frontend build is in frontend/out, so it is already included!
+          # We don't need node_modules anymore.
+          rm -rf frontend/node_modules
+          
+          # Create a tarball containing the repo and the built frontend directly
+          tar -czf tinkerpilot-release.tar.gz -C . .
+          
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./tinkerpilot-release.tar.gz
+          asset_name: tinkerpilot-release.tar.gz
+          asset_content_type: application/gzip

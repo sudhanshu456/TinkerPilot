@@ -139,14 +139,30 @@ if ! curl -s http://localhost:11434/api/tags &> /dev/null; then
 fi
 
 step "Downloading TinkerPilot..."
-if [ -d "$INSTALL_DIR" ]; then
-    info "Updating existing installation at $INSTALL_DIR..."
+LATEST_TAG=$(curl -s https://api.github.com/repos/sudhanshu456/tinkerpilot/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+
+if [ -n "$LATEST_TAG" ]; then
+    TAR_URL="https://github.com/sudhanshu456/tinkerpilot/releases/download/${LATEST_TAG}/tinkerpilot-release.tar.gz"
+    info "Downloading pre-built release ${LATEST_TAG}..."
+    if [ -d "$INSTALL_DIR" ]; then
+        info "Updating existing installation at $INSTALL_DIR..."
+        rm -rf "$INSTALL_DIR.old"
+        mv "$INSTALL_DIR" "$INSTALL_DIR.old"
+    fi
+    mkdir -p "$INSTALL_DIR"
+    curl -fsSL "$TAR_URL" | tar -xz -C "$INSTALL_DIR"
     cd "$INSTALL_DIR"
-    git pull origin main --quiet || true
 else
-    info "Cloning to $INSTALL_DIR..."
-    git clone https://github.com/sudhanshu456/tinkerpilot.git "$INSTALL_DIR" --quiet
-    cd "$INSTALL_DIR"
+    warn "No GitHub release found. Falling back to source clone..."
+    if [ -d "$INSTALL_DIR" ]; then
+        info "Updating existing installation at $INSTALL_DIR..."
+        cd "$INSTALL_DIR"
+        git pull origin main --quiet || true
+    else
+        info "Cloning to $INSTALL_DIR..."
+        git clone https://github.com/sudhanshu456/tinkerpilot.git "$INSTALL_DIR" --quiet
+        cd "$INSTALL_DIR"
+    fi
 fi
 
 step "Configuring TinkerPilot..."
@@ -273,27 +289,32 @@ pip install --default-timeout=100 -e . -c "$CONSTRAINTS_FILE"
 info "Python environment ready."
 
 step "Setting up frontend UI..."
-if ! command -v node &> /dev/null; then
-    warn "Node.js is missing (required to build UI)."
-    if [ "$PKG_MGR" == "brew" ]; then
-        info "Installing Node.js via Homebrew..."
-        brew install node
-    elif [ "$PKG_MGR" == "apt" ]; then
-        info "Installing Node.js via APT..."
-        curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-        sudo apt-get install -y nodejs
-    elif [ "$PKG_MGR" == "yum" ]; then
-        info "Installing Node.js via YUM..."
-        curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
-        sudo yum install -y nodejs
-    else
-        error "Please manually install Node.js 18+ before continuing."
+if [ -d "$INSTALL_DIR/frontend/out" ] && [ -f "$INSTALL_DIR/frontend/out/index.html" ]; then
+    info "Frontend pre-built assets detected. Skipping UI build."
+else
+    warn "No pre-built frontend found. Building from source..."
+    if ! command -v node &> /dev/null; then
+        warn "Node.js is missing (required to build UI)."
+        if [ "$PKG_MGR" == "brew" ]; then
+            info "Installing Node.js via Homebrew..."
+            brew install node
+        elif [ "$PKG_MGR" == "apt" ]; then
+            info "Installing Node.js via APT..."
+            curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+        elif [ "$PKG_MGR" == "yum" ]; then
+            info "Installing Node.js via YUM..."
+            curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
+            sudo yum install -y nodejs
+        else
+            error "Please manually install Node.js 18+ before continuing."
+        fi
     fi
+    cd "$INSTALL_DIR/frontend"
+    npm install --silent
+    npm run build --silent
+    info "Frontend built as static app."
 fi
-cd "$INSTALL_DIR/frontend"
-npm install --silent
-npm run build --silent
-info "Frontend built as static app."
 
 cd "$INSTALL_DIR/backend"
 ./.venv/bin/python -c "
