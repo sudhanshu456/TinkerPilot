@@ -3,9 +3,13 @@ Your truly local AI assitant, to be used for coding assistance, summarization, m
 
 All operations and features are powered by on-device AI inference. No cloud APIs. No data leaves your machine.
 
-![Docs](https://img.shields.io/website?url=https%3A%2F%2Ftinkerpilot.onrender.com)
+For documentation, visit [TinkerPilot Documentation](https://tinkerpilot.onrender.com).
 
-## Requirements
+## Quick Start
+
+The easiest way to install TinkerPilot as a standalone application is via the interactive installer.
+
+### Requirements
 
 | | macOS | Linux |
 |---|---|---|
@@ -16,21 +20,6 @@ All operations and features are powered by on-device AI inference. No cloud APIs
 | **Disk** | ~3 GB for AI models | ~3 GB (CPU-only PyTorch) or ~5 GB (CUDA PyTorch) |
 
 If you don't have GPU, it will run on CPU without much performance degradation.
-
-Below is the list of models used by TinkerPilot, you can change them later from the config file. See [Configuration](#configuration) section.
-
-## AI Models
-
-| Model | Purpose | Engine |
-|-------|---------|--------|
-| [Qwen2.5-3B-Instruct](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct) | Chat, summarization, code analysis | Ollama |
-| [Qwen3-Embedding 0.6B](https://huggingface.co/Qwen) | Text embeddings for RAG | Ollama |
-| [Moonshine Voice](https://github.com/moonshine-ai/moonshine) | Speech-to-text (streaming) | Moonshine (ONNX) |
-| [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) | Text-to-speech (6 voices) | PyTorch |
-
-## Quick Start
-
-The easiest way to install TinkerPilot as a standalone application is via the interactive installer.
 
 > **Before you run:** Ensure you have [Ollama](https://ollama.com/) installed on your system, and Homebrew installed if you are on macOS. If Ollama is not installed, the installer script will try to install it for you, but it is recommended to install it yourself beforehand.
 
@@ -57,6 +46,18 @@ Once installed, simply run:
 tp serve
 ```
 This will start the AI backend and serve the Web UI at **http://localhost:8000**.
+
+
+Below is the list of models used by TinkerPilot, you can change them later from the config file. See [Configuration](#configuration) section.
+
+### AI Models
+
+| Model | Purpose | Engine |
+|-------|---------|--------|
+| [Qwen2.5-3B-Instruct](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct) | Chat, summarization, code analysis | Ollama |
+| [Qwen3-Embedding 0.6B](https://huggingface.co/Qwen) | Text embeddings for RAG | Ollama |
+| [Moonshine Voice](https://github.com/moonshine-ai/moonshine) | Speech-to-text (streaming) | Moonshine (ONNX) |
+| [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) | Text-to-speech (6 voices) | PyTorch |
 
 
 ### Uninstall
