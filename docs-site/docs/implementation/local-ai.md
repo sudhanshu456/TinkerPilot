@@ -24,7 +24,6 @@ The following models are used in TinkerPilot:
 | Moonshine Voice      | Speech-to-text (streaming)       | ~250 MB  | Moonshine (ONNX)   |
 | Kokoro-82M           | Text-to-speech (6 voices)        | ~82 MB   | PyTorch            |
 
-For a detailed rationale behind the model selection, see the [Model Selection](../model-selection.md) document.
 
 ## RAG Pipeline
 
