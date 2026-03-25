@@ -839,38 +839,38 @@ def start(
     import signal
 
     pid_file = get_pid_file()
-    
-    # Check if already running
-    if pid_file.exists():
-        try:
-            pid = int(pid_file.read_text().strip())
-            os.kill(pid, 0)
-            console.print(f"[yellow]TinkerPilot server is already running (PID: {pid}).[/yellow]")
-            console.print("Use [bold]tp serve stop[/bold] to stop it.")
-            return
-        except (ValueError, ProcessLookupError, PermissionError):
-            pid_file.unlink()
 
     # Determine foreground vs background
     # --console (force_console) takes precedence over -b
     is_background = background and not force_console
 
+    # When running as the background worker child (--console), skip PID checks.
+    # The parent already wrote the PID file with our PID.
+    if not force_console:
+        # Check if already running
+        if pid_file.exists():
+            try:
+                pid = int(pid_file.read_text().strip())
+                os.kill(pid, 0)
+                console.print(f"[yellow]TinkerPilot server is already running (PID: {pid}).[/yellow]")
+                console.print("Use [bold]tp serve stop[/bold] to stop it.")
+                return
+            except (ValueError, ProcessLookupError, PermissionError):
+                pid_file.unlink()
+
     if is_background:
         # Use the installed 'tp' binary to spawn the background server.
-        # python -m cli.main doesn't work from site-packages, but the `tp` entry point always does.
         import pathlib
         tp_bin = pathlib.Path(sys.executable).parent / "tp"
-        cmd = [str(tp_bin), "serve", "start", "--host", host, "--port", str(port), "--console", "--log-level", "info"]
-        if no_open:
-            cmd.append("--no-open")
-            
+        cmd = [str(tp_bin), "serve", "start", "--host", host, "--port", str(port), "--console", "--log-level", log_level, "--no-open"]
+
         env = os.environ.copy()
-        
+
         # Open a log file for output
         from app.config import USER_DATA_DIR
         log_path = USER_DATA_DIR / "server.log"
-        log_file = open(log_path, "a")
-        
+        log_file = open(log_path, "w")  # Overwrite old log on each start
+
         process = subprocess.Popen(
             cmd,
             stdout=log_file,
@@ -879,8 +879,8 @@ def start(
             start_new_session=True,  # Detach from current session
             env=env
         )
-        
-        # Save PID
+
+        # Save the CHILD's PID so stop can find it
         pid_file.write_text(str(process.pid))
         console.print(f"[bold green]TinkerPilot server started in background (PID: {process.pid})[/bold green]")
         console.print(f"Log: [dim]{log_path}[/dim]")
@@ -896,22 +896,23 @@ def start(
 
         threading.Thread(target=launch_browser, daemon=True).start()
 
-    # Save PID for foreground too so 'stop' can kill it if needed
-    pid_file.write_text(str(os.getpid()))
+    # Only write PID in foreground (non-console) mode
+    if not force_console:
+        pid_file.write_text(str(os.getpid()))
 
     try:
         console.print(f"[bold cyan]Starting TinkerPilot server at http://{host}:{port}[/bold cyan]")
         console.print(f"[dim]Log level: {log_level}[/dim]")
-        
+
         # Set level globally for our app loggers
         import logging
         logging.getLogger("app").setLevel(log_level.upper())
         logging.getLogger("uvicorn.error").setLevel(log_level.upper())
-        
+
         uvicorn.run("app.main:app", host=host, port=port, reload=False, log_level=log_level.lower())
     finally:
-        # Cleanup PID on exit
-        if pid_file.exists():
+        # Cleanup PID on exit (only if we wrote it)
+        if not force_console and pid_file.exists():
             pid_file.unlink()
 
 
