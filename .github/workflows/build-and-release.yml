@@ -35,7 +35,7 @@ jobs:
           rm -rf frontend/node_modules
           
           # Create a tarball containing the repo and the built frontend directly
-          tar -czf tinkerpilot-release.tar.gz -C . .
+          tar --exclude=tinkerpilot-release.tar.gz -czf tinkerpilot-release.tar.gz -C . .
           
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
