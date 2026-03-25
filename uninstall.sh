@@ -35,7 +35,7 @@ fi
 
 # 2. Remove application files and (optionally) data
 echo -e "\n${BLUE}[2/3] Removing application files...${NC}"
-echo "Your TinkerPilot application is stored in ~/.tinkerpilot/app"
+echo "Your TinkerPilot application environment is stored in ~/.tinkerpilot/app"
 echo "Your configuration and database (tasks, meetings, transcripts) are stored in ~/.tinkerpilot"
 echo ""
 read -p "Do you want to completely DELETE all your data and configuration? (y/N) " wipe_data < /dev/tty
@@ -98,10 +98,10 @@ fi
 # Finally, execute the data wipe if requested
 if [ "$WIPE_ALL" = true ]; then
     rm -rf "$HOME/.tinkerpilot"
-    echo -e "\n${GREEN}Removed all TinkerPilot data and code ($HOME/.tinkerpilot).${NC}"
+    echo -e "\n${GREEN}Removed all TinkerPilot data and virtual environment ($HOME/.tinkerpilot).${NC}"
 else
     rm -rf "$HOME/.tinkerpilot/app"
-    echo -e "\n${GREEN}Removed application code ($HOME/.tinkerpilot/app).${NC}"
+    echo -e "\n${GREEN}Removed application virtual environment ($HOME/.tinkerpilot/app).${NC}"
     echo -e "${YELLOW}Your personal data and configuration were safely kept in $HOME/.tinkerpilot${NC}"
 fi
 
