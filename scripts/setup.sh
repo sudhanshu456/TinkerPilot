@@ -46,10 +46,10 @@ if command -v brew &> /dev/null; then info "Homebrew found"; fi
 
 # Python (any 3.10+ works — no C++ compilation needed)
 PYTHON_CMD=""
-for candidate in python3.12 python3.13 python3.11 python3.10 python3; do
+for candidate in python3.12 python3.11 python3.10 python3; do
     if command -v "$candidate" &> /dev/null; then
         PY_MINOR=$("$candidate" --version 2>&1 | awk '{print $2}' | cut -d. -f2)
-        if [[ "$PY_MINOR" -ge 10 ]]; then
+        if [[ "$PY_MINOR" -ge 10 ]] && [[ "$PY_MINOR" -le 12 ]]; then
             PYTHON_CMD="$candidate"
             break
         fi
@@ -153,7 +153,7 @@ fi
 source .venv/bin/activate
 
 info "Installing Python dependencies..."
-pip install --upgrade pip -q
+# pip install --upgrade pip -q
 
 # Pre-install minimal ML runtime to prevent heavy transitive deps
 # (CUDA PyTorch ~3GB nvidia-* libs, torchaudio, torchvision, onnxruntime-gpu).

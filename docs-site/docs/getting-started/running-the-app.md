@@ -80,6 +80,7 @@ tp convert data.csv --to json
 
 # Shell command helper
 tp cmd "find all python files modified in the last week"
+tp cmd --voice  # Use voice-to-command instead of typing
 
 # Git digest & Auto-commit messages
 tp git-digest /path/to/repo

@@ -103,11 +103,15 @@ tp convert data.csv --to json
 ```
 
 ### `cmd`
-Describe what you want to do in natural language, and TinkerPilot will give you the exact shell command to execute.
+Describe what you want to do in natural language or use your voice, and TinkerPilot will give you the exact shell command to execute.
 
-**Example:**
+**Examples:**
 ```bash
 tp cmd "find all python files modified in the last week"
+```
+*Use voice-to-command instead of typing:*
+```bash
+tp cmd --voice
 ```
 
 ### `git-digest`
