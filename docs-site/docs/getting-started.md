@@ -55,7 +55,7 @@ To run it in the foreground with live logs:
 tp serve start --console --log-level info
 ```
 
-You can also start using the CLI commands directly, see [Command Line Interface (CLI)](#command-line-interface-cli) section.
+This will start the AI backend and serve the Web UI at **http://localhost:8000**, or you can start using the CLI commands directly, see [Command Line Interface (CLI)](#command-line-interface-cli) section.
 
 Below is the list of models used by TinkerPilot, you can change them later from the config file. See [Configuration](#configuration) section.
 

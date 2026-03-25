@@ -818,7 +818,7 @@ def start(
     port: int = typer.Option(8000, "--port", "-p"),
     background: bool = typer.Option(False, "--background", "-b", help="Run in background"),
     log_level: str = typer.Option("info", "--log-level", help="Logging level (info, debug, warning, error)"),
-    console: bool = typer.Option(False, "--console", help="Force foreground even if background is requested"),
+    force_console: bool = typer.Option(False, "--console", help="Force foreground even if background is requested"),
     no_open: bool = typer.Option(False, "--no-open", help="Don't auto-open browser"),
 ):
     """Start the TinkerPilot API server."""
@@ -844,8 +844,8 @@ def start(
             pid_file.unlink()
 
     # Determine foreground vs background
-    # --console takes precedence over -b
-    is_background = background and not console
+    # --console (force_console) takes precedence over -b
+    is_background = background and not force_console
 
     if is_background:
         # Start as background process
