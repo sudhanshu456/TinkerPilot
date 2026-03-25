@@ -49,6 +49,9 @@ tp = "cli.main:app"
 where = ["."]
 include = ["app*", "cli*"]
 
+[tool.setuptools.package-data]
+"app" = ["static/ui/**/*", "static/ui/*"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"

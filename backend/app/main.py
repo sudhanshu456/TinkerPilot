@@ -102,7 +102,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from app.config import PROJECT_ROOT
 
-frontend_dist = os.path.join(PROJECT_ROOT, "frontend", "out")
+package_ui_dir = os.path.join(os.path.dirname(__file__), "static", "ui")
+repo_ui_dir = os.path.join(PROJECT_ROOT, "frontend", "out")
+frontend_dist = package_ui_dir if os.path.exists(package_ui_dir) else repo_ui_dir
 if os.path.exists(frontend_dist):
     next_assets_dir = os.path.join(frontend_dist, "_next")
     if os.path.exists(next_assets_dir):
