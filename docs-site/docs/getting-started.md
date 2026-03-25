@@ -11,7 +11,7 @@ Depending on the type of system you're running TinkerPilot on, here are the mini
 * macOS
     * Apple Silicon (M1+) — 8 GB RAM min.
     * Homebrew - Install script needs this to install missing dependencies if any.
-    * Python 3.10 – 3.12 - Due to Kokora (TTS) and Moonshine Voice (STT) dependencies, Python 3.10 - 3.12 is required. Node.js 18+
+    * Python 3.10 – 3.12 - Due to Kokora (TTS) and Moonshine Voice (STT) dependencies. Node.js 18+
     * [Ollama](https://ollama.com/), a tool to run LLMs locally. 
 * Linux
     * x86_64 — 8 GB RAM min; NVIDIA GPU optional (CUDA auto-detected)
