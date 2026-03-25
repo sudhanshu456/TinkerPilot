@@ -1,5 +1,6 @@
 ---
 sidebar_position: 3
+sidebar_label: Local AI
 title: Local AI Implementation
 ---
 TinkerPilot is designed to run entirely on your local machine, without relying on any cloud-based AI services. This is achieved by using a combination of local AI engines and carefully selected models that offer a good balance of performance and resource usage.
