@@ -4,6 +4,8 @@
 
 TinkerPilot combines chat-with-docs, meeting transcription, task management, and developer utilities into a single local-first application powered by on-device AI inference. No cloud APIs. No data leaves your machine.
 
+![Docs](https://img.shields.io/website?url=https%3A%2F%2Ftinkerpilot.onrender.com)
+
 ## Features
 
 ### Coding & Debug
