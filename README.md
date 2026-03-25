@@ -16,7 +16,6 @@ The easiest way to install TinkerPilot as a standalone application is via the in
 | **Hardware** | Apple Silicon (M1+) — 8 GB RAM min, 16 GB+ recommended | x86_64 — 8 GB RAM min; NVIDIA GPU optional (CUDA auto-detected) |
 | **OS tooling** | Homebrew | apt (Debian/Ubuntu) or yum (RHEL/Fedora) |
 | **Python** | 3.10 – 3.12 | 3.10 – 3.12 |
-| **Node.js** | 18+ | 18+ |
 | **Disk** | ~3 GB for AI models | ~3 GB (CPU-only PyTorch) or ~5 GB (CUDA PyTorch) |
 
 If you don't have GPU, it will run on CPU without much performance degradation.
@@ -29,24 +28,23 @@ curl -fsSL https://raw.githubusercontent.com/sudhanshu456/tinkerpilot/main/insta
 ```
 
 The installer automatically:
-- Installs system dependencies (Homebrew, Python (recommended version 3.10-3.12), Node, FFmpeg)
-- Downloads Ollama and the AI models, if not already installed and downloads the models if not already downloaded
-- Interactively configures your preferences
+- Installs system dependencies (FFmpeg, espeak-ng).
+- Downloads Ollama and the AI models, if not already installed.
+- Interactively configures your preferences:
   * HuggingFace Token, if you have one
   * Obsidian Vault path, if you have one
-  * Enable Apple Notes integration, if you have one
-- Builds the UI into a static web app
-- Creates a global `tp` command so you can use TinkerPilot from anywhere
+  * Enable Apple Notes integration (macOS only)
+- Downloads and installs the **pre-built binary wheel** — no local compilation or Node.js required.
+- Creates a global `tp` command so you can use TinkerPilot from anywhere.
 
 Note: In any case the installer fails or you face any issues, first rerun the installer script. It should resolve most of the issues. Otherwise, ensure you have Ollama installed in your system. You can install it from [here](https://ollama.com/). 
 
-Once installed, simply run:
+Once installed, start the server in the background:
 
 ```bash
-tp serve
+tp serve start -b
 ```
-This will start the AI backend and serve the Web UI at **http://localhost:8000**.
-
+This will start the AI backend and serve the Web UI at **http://localhost:8000**. To stop it: `tp serve stop`
 
 Below is the list of models used by TinkerPilot, you can change them later from the config file. See [Configuration](#configuration) section.
 
@@ -115,13 +113,25 @@ tp digest
 
 `tp` cli allow to spin up the web interface only when it is required. 
 
-To spin up the web interface, run:
+To start the web interface in **background mode** (recommended):
 
 ```bash
-tp serve
+tp serve start -b
 ```
 
-This will spin up the web interface at **http://localhost:8000**, and you can use it to interact with TinkerPilot, to look at the meetings, tasks, search, ingest documents, etc. 
+This starts the backend quietly in the background and opens **http://localhost:8000** in your browser.
+
+To stop it:
+```bash
+tp serve stop
+```
+
+Or run in **foreground** with live logs:
+```bash
+tp serve start --log-level info
+```
+
+This will spin up the web interface at **http://localhost:8000**, and you can use it to interact with TinkerPilot — look at meetings, tasks, search, ingest documents, etc.
 
 ## Configuration
 

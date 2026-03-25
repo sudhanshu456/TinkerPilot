@@ -158,10 +158,44 @@ tp voices
 
 ## Server Operations
 
-### `serve`
-Start the TinkerPilot AI backend server and serve the Web UI at **http://localhost:8000**.
+### `serve start`
+Start the TinkerPilot AI backend and serve the Web UI at **http://localhost:8000**.
 
-**Example:**
+**Examples:**
+```bash
+# Start in foreground (default — shows logs in terminal)
+tp serve start
+
+# Start in background (returns immediately)
+tp serve start -b
+
+# Start in background with a specific log level
+tp serve start -b --log-level debug
+
+# Start in foreground but force console output (used internally)
+tp serve start --console --log-level info
+```
+
+**Options:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--host`, `-h` | `127.0.0.1` | Host to bind to |
+| `--port`, `-p` | `8000` | Port to bind to |
+| `--background`, `-b` | `false` | Run in background; returns immediately |
+| `--log-level` | `info` | Logging verbosity: `debug`, `info`, `warning`, `error` |
+| `--no-open` | `false` | Don't auto-open browser on start |
+
+### `serve stop`
+Stop **all** running TinkerPilot server instances (both tracked and stray).
+
+```bash
+tp serve stop
+```
+
+### `serve` (shorthand)
+Running `tp serve` without a subcommand is equivalent to `tp serve start` in foreground mode.
+
 ```bash
 tp serve
 ```
