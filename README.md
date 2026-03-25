@@ -59,15 +59,6 @@ Below is the list of models used by TinkerPilot, you can change them later from 
 | [Moonshine Voice](https://github.com/moonshine-ai/moonshine) | Speech-to-text (streaming) | Moonshine (ONNX) |
 | [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) | Text-to-speech (6 voices) | PyTorch |
 
-
-### Uninstall
-
-If you ever want to completely remove TinkerPilot, its models, and its data, run:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/sudhanshu456/tinkerpilot/main/uninstall.sh | bash
-```
-
 ## CLI Usage
 
 Once installed, you can use TinkerPilot from anywhere by running `tp` command, for examples:
@@ -179,6 +170,14 @@ integrations:
 - All data stored in `~/.tinkerpilot/` on your local filesystem
 - Apple Notes access requires explicit macOS permission grants
 - No telemetry, no analytics, no tracking
+
+### Uninstall
+
+If you ever want to completely remove TinkerPilot, its models, and its data, run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sudhanshu456/tinkerpilot/main/uninstall.sh | bash
+```
 
 ## License
 
