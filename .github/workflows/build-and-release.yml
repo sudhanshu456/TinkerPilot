@@ -27,16 +27,26 @@ jobs:
         
       - name: Build Python Wheel and Package Release
         run: |
+          # Strip the leading 'v' from the tag to get a PEP-440 version (e.g. v0.2.1 -> 0.2.1)
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Building version: $VERSION"
+
+          # Patch pyproject.toml to use the release version
+          sed -i "s/^version = .*/version = \"$VERSION\"/" backend/pyproject.toml
+
           # Copy compiled frontend into backend module for the pip package
           mkdir -p backend/app/static/ui
           cp -r frontend/out/* backend/app/static/ui/
 
-          # Build the .whl using standard python tools
+          # Build the .whl
           cd backend
           pip install build
           python -m build --wheel
-          # Rename to a valid wheel filename (Matches pyproject.toml version)
-          mv dist/*.whl ../tinkerpilot-0.1.0-py3-none-any.whl
+          
+          # The wheel will be named: tinkerpilot-{VERSION}-py3-none-any.whl
+          WHL_FILE=$(ls dist/*.whl)
+          echo "Built wheel: $WHL_FILE"
+          cp "$WHL_FILE" ../tinkerpilot-release.whl
 
       - name: Upload Python Wheel
         uses: actions/upload-release-asset@v1
@@ -44,6 +54,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./tinkerpilot-0.1.0-py3-none-any.whl
-          asset_name: tinkerpilot-0.1.0-py3-none-any.whl
+          asset_path: ./tinkerpilot-release.whl
+          asset_name: tinkerpilot-${{ github.ref_name }}-py3-none-any.whl
           asset_content_type: application/zip

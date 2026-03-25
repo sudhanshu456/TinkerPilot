@@ -254,13 +254,22 @@ if [ -n "$TORCH_VER" ]; then
 fi
 
 step "Downloading & Installing TinkerPilot..."
-LATEST_TAG=$(curl -s https://api.github.com/repos/sudhanshu456/tinkerpilot/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+RELEASE_JSON=$(curl -s https://api.github.com/repos/sudhanshu456/tinkerpilot/releases/latest)
+LATEST_TAG=$(echo "$RELEASE_JSON" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
 
 if [ -n "$LATEST_TAG" ]; then
-    WHL_URL="https://github.com/sudhanshu456/tinkerpilot/releases/download/${LATEST_TAG}/tinkerpilot-0.1.0-py3-none-any.whl"
-    info "Installing pre-built release ${LATEST_TAG} via pip..."
-    pip install --default-timeout=100 "$WHL_URL" -c "$CONSTRAINTS_FILE"
-else
+    # Discover the .whl URL from the release assets (handles any version tag)
+    WHL_URL=$(echo "$RELEASE_JSON" | grep '"browser_download_url":' | grep '\.whl' | sed -E 's/.*"([^"]+)".*/\1/' | head -n1)
+    if [ -z "$WHL_URL" ]; then
+        warn "No .whl found in release assets. Falling back to source..."
+        LATEST_TAG=""
+    else
+        info "Installing pre-built release ${LATEST_TAG} via pip..."
+        pip install --default-timeout=100 "$WHL_URL" -c "$CONSTRAINTS_FILE"
+    fi
+fi
+
+if [ -z "$LATEST_TAG" ]; then
     warn "No pre-built GitHub release found. Falling back to downloading and building source code..."
     if [ -d "source" ]; then
         info "Updating existing source installation..."
@@ -298,6 +307,7 @@ else
     info "Frontend built as static app locally."
     cd ../..
 fi
+
 
 info "Python environment and TinkerPilot ready."
 
