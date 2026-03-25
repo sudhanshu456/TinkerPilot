@@ -25,7 +25,11 @@ def get_engine():
     global _engine
     if _engine is None:
         db_path = get_db_path()
-        _engine = create_engine(f"sqlite:///{db_path}", echo=False)
+        _engine = create_engine(
+            f"sqlite:///{db_path}",
+            echo=False,
+            connect_args={"check_same_thread": False},
+        )
         logger.info(f"SQLite database at {db_path}")
     return _engine
 
