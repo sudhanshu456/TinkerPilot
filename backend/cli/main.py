@@ -917,43 +917,66 @@ def start(
 
 @serve_app.command("stop")
 def stop():
-    """Stop the background TinkerPilot server."""
+    """Stop all running TinkerPilot server instances."""
     import os
     import signal
-    
+    import subprocess
+    import time
+
+    killed_any = False
     pid_file = get_pid_file()
-    if not pid_file.exists():
-        console.print("[yellow]TinkerPilot server is not running.[/yellow]")
-        return
-        
+
+    # Step 1: Kill the PID-file tracked process
+    if pid_file.exists():
+        try:
+            pid = int(pid_file.read_text().strip())
+            os.kill(pid, 0)  # Check it's alive
+            console.print(f"[dim]Stopping tracked server (PID: {pid})...[/dim]")
+            os.kill(pid, signal.SIGTERM)
+            for _ in range(30):
+                try:
+                    os.kill(pid, 0)
+                    time.sleep(0.1)
+                except ProcessLookupError:
+                    break
+            else:
+                os.kill(pid, signal.SIGKILL)
+            killed_any = True
+        except (ValueError, ProcessLookupError, PermissionError):
+            pass
+        finally:
+            pid_file.unlink(missing_ok=True)
+
+    # Step 2: Broad sweep — find any remaining uvicorn processes serving app.main:app
     try:
-        pid = int(pid_file.read_text().strip())
-        console.print(f"[dim]Stopping server (PID: {pid})...[/dim]")
-        
-        # Try graceful shutdown (SIGTERM)
-        os.kill(pid, signal.SIGTERM)
-        
-        # Wait a bit
-        import time
-        for _ in range(30):
+        result = subprocess.run(
+            ["pgrep", "-f", "uvicorn.*app.main:app"],
+            capture_output=True, text=True
+        )
+        stray_pids = [int(p) for p in result.stdout.strip().splitlines() if p.strip()]
+        for pid in stray_pids:
+            if pid == os.getpid():
+                continue  # Don't kill ourselves
             try:
-                os.kill(pid, 0)
-                time.sleep(0.1)
-            except ProcessLookupError:
-                break
-        else:
-            # Force kill
-            console.print("[yellow]Server did not stop gracefully, forcing...[/yellow]")
-            os.kill(pid, signal.SIGKILL)
-            
+                console.print(f"[dim]Stopping stray server process (PID: {pid})...[/dim]")
+                os.kill(pid, signal.SIGTERM)
+                time.sleep(0.3)
+                try:
+                    os.kill(pid, 0)
+                    os.kill(pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                killed_any = True
+            except (ProcessLookupError, PermissionError):
+                pass
+    except FileNotFoundError:
+        pass  # pgrep not available (rare on macOS/Linux)
+
+    if killed_any:
         console.print("[green]TinkerPilot server stopped.[/green]")
-    except (ValueError, ProcessLookupError):
-        console.print("[yellow]Stale PID file found. Cleaning up.[/yellow]")
-    except Exception as e:
-        console.print(f"[red]Error stopping server: {e}[/red]")
-    finally:
-        if pid_file.exists():
-            pid_file.unlink()
+    else:
+        console.print("[yellow]No running TinkerPilot server found.[/yellow]")
+
 
 
 app.add_typer(serve_app, name="serve")
