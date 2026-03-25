@@ -809,7 +809,15 @@ def serve_main(
     """Manage the TinkerPilot API server."""
     if ctx.invoked_subcommand is None:
         # Default behavior: tp serve -> starts the server
-        start(host=host, port=port, background=background)
+        # Must pass all defaults explicitly — calling a @command fn directly gives OptionInfo objects otherwise
+        start(
+            host=host,
+            port=port,
+            background=background,
+            log_level="info",
+            force_console=False,
+            no_open=False,
+        )
 
 
 @serve_app.command("start")
